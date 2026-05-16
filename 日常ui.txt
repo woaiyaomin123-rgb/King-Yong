@@ -2003,8 +2003,16 @@ const STAT_KEYS_BASIC = ['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
 // ══════════════════════════════════════════════
 let _state = null, _allocPending = {}, _expandedKungfu = {}, _expandedChar = {}, _activeTab = {}, _itemFilter = {};
 let _allocMul = 1;
+let _patchChecked = false;
 
 async function loadState(retries=3){
+  if (!_patchChecked) {
+    _patchChecked = true;
+    try {
+      const r = await callParent('WX_APPLY_AI_PATCH');
+      if (r?.ok && r?.applied) console.log('[UI] 已应用AI补丁:', r.applied, '条');
+    } catch(e) {}
+  }
   for(let i=0;i<=retries;i++){
     const res = await callParent('WX_GET_STATE');
     if(res?.ok){ _state = res.stat_data; fixExpToNext(); return; }

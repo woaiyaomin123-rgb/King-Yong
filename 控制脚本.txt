@@ -5116,6 +5116,58 @@ window.parent.WX_GET_STATE = async () => {
   }
   };
 // ══════════════════════════════════════════════════════
+//  WX_APPLY_AI_PATCH — 从最新AI消息提取JSONPatch并应用到MVU数据
+//  后备方案：当shujuku插件未能自动应用补丁时使用
+// ══════════════════════════════════════════════════════
+window.parent.WX_APPLY_AI_PATCH = async () => {
+  try {
+    const { Mvu, data, aiMsgId } = await getLatestAiData();
+    if (!data?.stat_data) return { ok: false, msg: '数据未就绪' };
+    if (data.stat_data._lastPatchMsg === aiMsgId) return { ok: true, already: true };
+    const lastId = getLastMessageId();
+    const msgs = await getChatMessages(`0-${lastId}`);
+    let aiText = '';
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'assistant') { aiText = msgs[i].mes || ''; break; }
+    }
+    if (!aiText) return { ok: false, msg: '无AI消息' };
+    if (aiText.includes('&lt;JSONPatch') && !aiText.includes('<JSONPatch>')) {
+      aiText = aiText.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    }
+    const m = aiText.match(/<JSONPatch>\s*([\s\S]*?)\s*<\/JSONPatch>/);
+    if (!m) return { ok: false, msg: '无JSONPatch' };
+    let patches;
+    try { patches = JSON.parse(m[1]); } catch(e) { return { ok: false, msg: 'Patch解析失败' }; }
+    if (!Array.isArray(patches) || !patches.length) return { ok: false, msg: 'Patch为空' };
+    const sd = data.stat_data;
+    let applied = 0;
+    for (const p of patches) {
+      const parts = p.path.split('/').filter(Boolean);
+      const key = parts.join('.');
+      try {
+        if (p.op === 'replace' || p.op === 'add') { _.set(sd, key, p.value); applied++; }
+        else if (p.op === 'remove') { _.unset(sd, key); applied++; }
+      } catch(e) { console.warn('[补丁] 操作失败:', p, e); }
+    }
+    const learned = _.get(sd, '玩家.领悟功法', []);
+    const wugong = sd.武功 || {};
+    for (const name of learned) {
+      if (!wugong[name]) {
+        const kf = KUNGFU_LIB[name];
+        if (kf) wugong[name] = { 类别: kf.类别 || '普通', 熟练度: 0 };
+      }
+    }
+    sd.武功 = wugong;
+    sd._lastPatchMsg = aiMsgId;
+    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
+    console.log(`[天书] AI补丁已应用: ${applied}/${patches.length} 条操作`);
+    return { ok: true, applied, total: patches.length };
+  } catch(e) {
+    console.error('[天书] 补丁应用失败:', e);
+    return { ok: false, msg: e.message };
+  }
+};
+// ══════════════════════════════════════════════════════
 //  WX_GET_KUNGFU — 按名字查武功详情
 // ══════════════════════════════════════════════════════
 window.parent.WX_GET_KUNGFU = (name) => {
