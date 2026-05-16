@@ -2315,56 +2315,45 @@ function buildAttrPanel(char) {
   h+='</div>';return h;
 }
 
-// ── 基本功加点 — 局部刷新，不重建整个卡片 ──
+// ── 基本功面板（只读，二创改编版）──
 function buildBasicPanel(charKey, char) {
   const BSK_TIP={拳掌:'拳掌增加 力量、防御力',棍枪:'棍枪增加 力量、速度',剑:'剑增加 速度、身法',刀:'刀增加 力量、防御力',暗器:'暗器增加 速度、身法',内功底蕴:'内功底蕴增加 内功修为、防御力'};
-  const bf     = {基本功: char.基本功||{}, 点数: 0};
-  const skills = bf.基本功||{};
-  const pts    = bf.点数||0;
-  const pend   = _allocPending[charKey]||{};
-  const used   = Object.values(pend).reduce((s,v)=>s+v,0);
-  const remain = pts - used;
-
-  // 武功对基本功的增幅（仅用于分项展示）
-  const kfBsk = {};
-  const lr = Array.isArray(char.领悟功法)?char.领悟功法:Object.keys(char.领悟功法||{});
-  for (const name of lr) {
-    let kd=null; try{kd=window.parent.WX_GET_KUNGFU(name);}catch(e){}
-    if(!kd) continue;
-    const b=kd.基本功和属性增幅||{};
-    for (const k of STAT_KEYS_BASIC) { if(b[k]) kfBsk[k]=(kfBsk[k]||0)+b[k]; }
-  }
+  const skills = char.基本功||{};
+  const dantian = char.丹田||{};
 
   const rows = STAT_KEYS_BASIC.map(k => {
-    const cur   = skills[k]||0, delta = pend[k]||0;
-    const kfV   = kfBsk[k]||0;
-    const base  = cur - kfV;
-    const tipData = kfV ? JSON.stringify({n:k,base:base,kf:kfV,total:cur,isBsk:true}) : '';
-    const tipAnchor = kfV ? `<span class="wx-attr-tip-anchor" data-attrtip='${tipData}'>?</span>` : '';
-    return `<div class="wx-alloc-row" data-alloc-row="${k}">
+    const cur = skills[k]||0;
+    const dtVal = dantian[k]||0;
+    const dtHtml = dtVal > 0 ? `<span style="color:var(--jade-l);font-size:11px;margin-left:4px">(丹田+${dtVal})</span>` : '';
+    return `<div class="wx-alloc-row">
       <div class="wx-alloc-name" title="${BSK_TIP[k]||''}">${k}</div>
-      <button class="wx-alloc-btn" data-minus data-skill="${k}" data-key="${charKey}" ${delta>0?'':'disabled'}>−</button>
-      <div class="wx-alloc-cur">${cur+delta}</div>
-      <button class="wx-alloc-btn" data-plus data-skill="${k}" data-key="${charKey}" ${remain>0&&pts>0?'':'disabled'}>＋</button>
-      <div class="wx-alloc-delta" style="color:${delta>0?'var(--jade-l)':'var(--text-dim)'}">
-        ${delta>0?'+'+delta:'&nbsp;'}
-      </div>
-      ${tipAnchor}
+      <div class="wx-alloc-cur" style="flex:1;text-align:center">${cur}${dtHtml}</div>
     </div>`;
   }).join('');
 
-  return `
-    <div class="wx-points-row">
-      <span class="wx-points-label">可用点数</span>
-      <span class="wx-points-val" data-remain-val>${remain}</span>
-      <span class="wx-points-total">/ ${pts}</span>
-      <button class="wx-alloc-mul${_allocMul===1?' active':''}" data-mul="1" data-key="${charKey}">×1</button>
-      <button class="wx-alloc-mul${_allocMul===5?' active':''}" data-mul="5" data-key="${charKey}">×5</button>
-      <button class="wx-alloc-mul${_allocMul===10?' active':''}" data-mul="10" data-key="${charKey}">×10</button>
-      ${used>0?`<button class="wx-alloc-reset" data-reset data-key="${charKey}" style="margin-left:auto">重置</button>`:''}
-    </div>
-    ${rows}
-    ${used>0?`<button class="wx-alloc-confirm" data-confirm data-key="${charKey}">确认加点（+${used}）</button>`:''}`;
+  const profHtml = (() => {
+    const wugong = _state?.武功 || {};
+    const entries = Object.entries(wugong);
+    if (!entries.length) return '';
+    const tierName = p => p >= 200 ? '炉火纯青' : p >= 100 ? '融会贯通' : '初窥门径';
+    const tierColor = p => p >= 200 ? '#f5c842' : p >= 100 ? '#7ecf7e' : '#aaa';
+    return '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:8px">'
+      + '<div style="color:var(--text-dim);font-size:11px;margin-bottom:4px">武功熟练度</div>'
+      + entries.map(([name, info]) => {
+        const prof = (typeof info === 'object' ? info.熟练度 : 0)||0;
+        const pct = Math.min(100, prof/3);
+        return `<div style="display:flex;align-items:center;gap:6px;margin:3px 0">
+          <span style="min-width:80px;font-size:12px;color:#ccc">${name}</span>
+          <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${tierColor(prof)};border-radius:3px"></div>
+          </div>
+          <span style="font-size:10px;color:${tierColor(prof)}">${tierName(prof)} ${prof}</span>
+        </div>`;
+      }).join('')
+      + '</div>';
+  })();
+
+  return `<div class="wx-alloc-wrap">${rows}${profHtml}</div>`;
 }
 
 // ── 基本功面板局部刷新（不重建卡片）──
@@ -2376,9 +2365,6 @@ function refreshBasicPanel(charKey) {
   const panel = document.getElementById(`tp-basic-${charKey}`);
   if (!panel) { refreshCard(charKey); return; }
   panel.innerHTML = buildBasicPanel(charKey, char);
-  // 重新绑定基本功相关事件
-  const wrap = document.getElementById(`wx-char-${charKey}`);
-  if (wrap) bindBasicEvents(wrap, charKey, char, isPlayer);
 }
 
 // ── 装备穿着映射：{装备名: 穿着者名} ──
@@ -2554,64 +2540,10 @@ function buildKungfuPanel(charKey, char) {
 
 // ══════════════════════════════════════════════
 //  事件绑定
-// ══════════════════════════════════════════════
-// ── 基本功加减事件（独立，供局部刷新调用）──
-function bindBasicEvents(wrap, charKey, char, isPlayer) {
-  wrap.querySelectorAll('[data-plus]').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      e.stopPropagation();
-      const skill=btn.dataset.skill;
-      if(!_allocPending[charKey]) _allocPending[charKey]={};
-      const curChar=isPlayer?_state.玩家:_state.我方队友?.[charKey];
-      const pts=0;
-      const used=Object.values(_allocPending[charKey]).reduce((s,v)=>s+v,0);
-      const add=Math.min(_allocMul, pts-used);
-      if(add<=0) return;
-      _allocPending[charKey][skill]=(_allocPending[charKey][skill]||0)+add;
-      refreshBasicPanel(charKey);
-    });
-  });
-  wrap.querySelectorAll('[data-minus]').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      e.stopPropagation();
-      const skill=btn.dataset.skill;
-      if(!_allocPending[charKey]) return;
-      const cur=_allocPending[charKey][skill]||0;
-      const sub=Math.min(_allocMul, cur);
-      _allocPending[charKey][skill]=cur-sub;
-      if(!_allocPending[charKey][skill]) delete _allocPending[charKey][skill];
-      refreshBasicPanel(charKey);
-    });
-  });
-  wrap.querySelectorAll('[data-mul]').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      e.stopPropagation();
-      _allocMul=parseInt(btn.dataset.mul)||1;
-      refreshBasicPanel(charKey);
-    });
-  });
-  wrap.querySelectorAll('[data-reset]').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      e.stopPropagation();
-      _allocPending[charKey]={};
-      refreshBasicPanel(charKey);
-    });
-  });
-  wrap.querySelectorAll('[data-confirm]').forEach(btn=>{
-    btn.addEventListener('click', async e=>{
-      e.stopPropagation();
-      const alloc=_allocPending[charKey];
-      if(!alloc||!Object.keys(alloc).length) return;
-      btn.disabled=true;
-      const res=await callParent('WX_STAT_ALLOC',{charKey,alloc});
-      if(res?.ok){ _allocPending[charKey]={}; showToast(`加点完成，剩余${res.remaining}点`); await loadState(); renderParty(); }
-      else{ showToast(res?.msg||'加点失败'); btn.disabled=false; }
-    });
-  });
-}
+// ── 基本功事件（二创改编：面板只读，无加点操作）──
+function bindBasicEvents(wrap, charKey, char, isPlayer) {}
 
 function bindEvents(wrap, charKey, char, isPlayer) {
-  // 基本功
   bindBasicEvents(wrap, charKey, char, isPlayer);
   // 装备卸下
   wrap.querySelectorAll('[data-unequip]').forEach(btn=>{
