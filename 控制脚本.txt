@@ -4990,8 +4990,21 @@ async function getLatestAiData() {
     if (msgs[i].role === 'assistant') { aiMsgId = msgs[i].message_id; break; }
   }
   console.log('[getLatestAiData] lastId=', lastId, 'aiMsgId=', aiMsgId, 'totalMsgs=', msgs.length);
-  const data = await Mvu.getMvuData({ type: 'message', message_id: aiMsgId });
-  console.log('[getLatestAiData] data keys=', Object.keys(data||{}), 'stat_data keys=', Object.keys(data?.stat_data||{}));
+  let data;
+  try {
+    data = await Mvu.getMvuData({ type: 'message', message_id: aiMsgId + 1 });
+    console.log('[getLatestAiData] 使用 msgId+1 成功');
+  } catch(e1) {
+    console.log('[getLatestAiData] msgId+1 失败, 尝试无参数:', e1.message);
+    try {
+      data = await Mvu.getMvuData();
+      console.log('[getLatestAiData] 无参数调用成功');
+    } catch(e2) {
+      console.log('[getLatestAiData] 无参数也失败, 回退到 msgId:', e2.message);
+      data = await Mvu.getMvuData({ type: 'message', message_id: aiMsgId });
+    }
+  }
+  console.log('[getLatestAiData] 力量=', data?.stat_data?.玩家?.属性?.力量, '基本功=', data?.stat_data?.玩家?.基本功);
   return { Mvu, data, aiMsgId };
   }
 function getPlayerName(data) {
