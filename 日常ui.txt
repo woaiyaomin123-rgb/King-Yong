@@ -2207,7 +2207,7 @@ function buildCharCard(charKey, char, isPlayer) {
   const genderColor = gender==='女' ? 'hsl(340,55%,65%)' : gender==='不男不女' ? 'hsl(270,45%,65%)' : 'hsl(210,55%,65%)';
   const genderHtml = `<span style="color:${genderColor}">${gender}</span>`;
   const titleStr = info.称号||'无';
-  const _realm = (()=>{ try{ const r=window.parent?.WX_GET_REALM?.(charKey==='player'?'player':charKey); return r&&!r.then?r.realm:''; }catch(e){return '';} })() || '初学乍练';
+  const _rA=char.属性||{},_rB=char.基本功||{};const _rS=((_rA.力量||0)+(_rA.速度||0)+(_rA.防御力||0)+(_rA.内功修为||0)+(_rA.身法||0))+Object.values(_rB).reduce((s,v)=>s+(v||0),0)*2;const _realm=(()=>{for(const[t,n]of[[1800,'一代宗师'],[1500,'傲视群雄'],[1250,'所向披靡'],[1050,'出类拔萃'],[900,'炉火纯青'],[750,'融会贯通'],[600,'略有小成'],[450,'驾轻就熟'],[300,'粗通皮毛'],[150,'初窥门径'],[0,'初学乍练']])if(_rS>=t)return n;return'初学乍练';})();
   const sub      = `${_realm}  ${genderHtml}  ${titleStr}`;
   const expanded = _expandedChar[charKey] ?? false;
   const tab      = _activeTab[charKey] || 'attr';
@@ -2284,8 +2284,9 @@ function refreshCard(charKey) {
 
 // ── 属性面板 ──
 function buildAttrPanel(char) {
-  var _ri=null; try{_ri=window.parent?.WX_GET_REALM?.('player');}catch(e){} if(_ri&&_ri.then)_ri=null;
-  var _rn=_ri?.realm||'初学乍练', _rs=_ri?.score||0;
+  var _rA=char.属性||{},_rB=char.基本功||{};
+  var _rs=((_rA.力量||0)+(_rA.速度||0)+(_rA.防御力||0)+(_rA.内功修为||0)+(_rA.身法||0))+Object.values(_rB).reduce((s,v)=>s+(v||0),0)*2;
+  var _rn=(function(){for(var i=0,T=[[1800,'一代宗师'],[1500,'傲视群雄'],[1250,'所向披靡'],[1050,'出类拔萃'],[900,'炉火纯青'],[750,'融会贯通'],[600,'略有小成'],[450,'驾轻就熟'],[300,'粗通皮毛'],[150,'初窥门径'],[0,'初学乍练']];i<T.length;i++)if(_rs>=T[i][0])return T[i][1];return'初学乍练';})();
   var h='<div class="wx-exp-bar-wrap"><div class="wx-exp-header">'
     +'<span class="wx-exp-lv">'+_rn+'</span>'
     +'<span class="wx-exp-nums">实力值 <b>'+_rs+'</b></span>'
@@ -2314,7 +2315,7 @@ function buildAttrPanel(char) {
   h+='</div>';return h;
 }
 
-// ── 基本功 — 局部刷新，不重建整个卡片 ──
+// ── 基本功加点 — 局部刷新，不重建整个卡片 ──
 function buildBasicPanel(charKey, char) {
   const BSK_TIP={拳掌:'拳掌增加 力量、防御力',棍枪:'棍枪增加 力量、速度',剑:'剑增加 速度、身法',刀:'刀增加 力量、防御力',暗器:'暗器增加 速度、身法',内功底蕴:'内功底蕴增加 内功修为、防御力'};
   const bf     = {基本功: char.基本功||{}, 点数: 0};
@@ -3006,20 +3007,12 @@ function loadContent() {
 
 initAttrTooltip();
 
-// 尝试通过parent访问事件系统（iframe内裸引用不存在）
-try {
-  const _eo = window.parent?.eventOn || (typeof eventOn==='function'?eventOn:null);
-  const _te = window.parent?.tavern_events || (typeof tavern_events!=='undefined'?tavern_events:null);
-  if(_eo && _te){
-    _eo(_te.MESSAGE_RECEIVED, loadContent);
-    _eo(_te.MESSAGE_SENT, loadContent);
-    _eo(_te.CHAT_CHANGED, loadContent);
-  }
-} catch(e){}
+if(typeof eventOn==='function'&&typeof tavern_events!=='undefined'){
+  eventOn(tavern_events.MESSAGE_RECEIVED,loadContent);
+  eventOn(tavern_events.MESSAGE_SENT,loadContent);
+  eventOn(tavern_events.CHAT_CHANGED,loadContent);
+}
 loadContent();
-// 延迟重渲染：确保MVU patch应用后UI能刷新
-setTimeout(loadContent, 2000);
-setTimeout(loadContent, 4000);
 
 // ── 行动选项模式切换 ──
 (function(){
