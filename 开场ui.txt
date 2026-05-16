@@ -1,0 +1,2320 @@
+```
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天书江湖录 · 角色创建</title>
+<meta name="description" content="天书江湖录 — 踏入江湖，书写命运。在这片汇聚了万古英雄的大陆上，创建属于你的武者传说。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;900&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════
+   CSS 变量 & 重置
+════════════════════════════════════════════════ */
+:root {
+  --void:        hsl(24, 18%, 5%);
+  --deep:        hsl(24, 16%, 8%);
+  --surface:     hsl(24, 14%, 11%);
+  --surface2:    hsl(24, 12%, 14%);
+  --gold:        hsl(42, 58%, 55%);
+  --gold-bright: hsl(44, 72%, 68%);
+  --gold-dim:    hsl(40, 40%, 38%);
+  --gold-glow:   hsla(42, 72%, 55%, 0.18);
+  --crimson:     hsl(355, 62%, 44%);
+  --crimson-dim: hsl(355, 52%, 28%);
+  --jade:        hsl(158, 42%, 36%);
+  --jade-dim:    hsl(158, 32%, 22%);
+  --azure:       hsl(220, 52%, 52%);
+  --parchment:   hsl(38, 40%, 88%);
+  --parchment2:  hsl(38, 30%, 72%);
+  --fog:         hsla(38, 30%, 88%, 0.06);
+  --border:      hsla(42, 58%, 55%, 0.18);
+  --border-hover:hsla(42, 72%, 68%, 0.45);
+
+  --font-display: 'Ma Shan Zheng', cursive;
+  --font-latin:   'Cinzel', serif;
+  --font-body:    'Noto Serif SC', serif;
+
+  --ease-silk: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--parchment);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ════════════════════════════════════════════════
+   粒子背景层
+════════════════════════════════════════════════ */
+#particle-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* 环境光晕 */
+.ambient-glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 50%,  hsla(355,62%,28%,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 85% 20%,  hsla(158,42%,22%,0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 50% 80%,  hsla(42,58%,30%,0.08)  0%, transparent 60%),
+    radial-gradient(ellipse 80% 80% at 50% 50%,  hsla(24,18%,4%,0.5)    0%, transparent 100%);
+}
+
+/* 纹理叠加 */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* 细纵线装饰 */
+.vert-line {
+  position: fixed;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    var(--border) 20%,
+    var(--border) 80%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.vert-line:nth-child(1) { left: calc(50% - 260px); }
+.vert-line:nth-child(2) { left: calc(50% + 260px); }
+
+/* ════════════════════════════════════════════════
+   主布局
+════════════════════════════════════════════════ */
+#app {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  max-width: clamp(640px, 55vw, 960px);
+  margin: 0 auto;
+}
+
+/* ════════════════════════════════════════════════
+   顶部标题栏
+════════════════════════════════════════════════ */
+.header-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 32px 14px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* 顶部装饰线 */
+.header-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right,
+    transparent,
+    var(--crimson-dim) 20%,
+    var(--gold) 50%,
+    var(--jade-dim) 80%,
+    transparent);
+}
+
+/* 标题下边框 */
+.header-bar::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border), transparent);
+}
+
+.title-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+/* 两侧剑形装饰 */
+.title-lockup::before,
+.title-lockup::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold-dim));
+}
+.title-lockup::before { right: calc(100% + 12px); }
+.title-lockup::after  { left:  calc(100% + 12px); background: linear-gradient(to left, transparent, var(--gold-dim)); }
+
+.title-main {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.5vw, 46px);
+  letter-spacing: clamp(14px, 1.5vw, 22px);
+  color: var(--gold-bright);
+  text-shadow:
+    0 0 40px hsla(42,72%,55%,0.5),
+    0 0 80px hsla(42,72%,55%,0.2);
+  animation: title-pulse 4s ease-in-out infinite;
+}
+
+@keyframes title-pulse {
+  0%, 100% { text-shadow: 0 0 40px hsla(42,72%,55%,0.5), 0 0 80px hsla(42,72%,55%,0.2); }
+  50%       { text-shadow: 0 0 60px hsla(42,72%,55%,0.7), 0 0 120px hsla(42,72%,55%,0.3); }
+}
+
+.title-sub {
+  font-family: var(--font-latin);
+  font-size: 9px;
+  letter-spacing: 6px;
+  color: hsla(38, 30%, 88%, 0.3);
+  text-transform: uppercase;
+}
+
+/* ════════════════════════════════════════════════
+   进度指示器
+════════════════════════════════════════════════ */
+.progress-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 32px;
+  position: relative;
+}
+
+/* 进度条背景轨道 */
+.progress-row::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: var(--border);
+  transform: translateY(-50%);
+  z-index: -1;
+}
+
+.prog-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid hsla(42,40%,38%,0.4);
+  transition: all 0.5s var(--ease-silk);
+  position: relative;
+  cursor: default;
+}
+
+.prog-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--gold-glow), transparent);
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.prog-dot.active {
+  background: var(--gold);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px var(--gold-glow), 0 0 24px var(--gold-glow);
+  width: 24px;
+  border-radius: 4px;
+}
+.prog-dot.active::after { opacity: 1; }
+
+.prog-dot.done {
+  background: var(--gold-dim);
+  border-color: var(--gold-dim);
+}
+
+/* ════════════════════════════════════════════════
+   页面容器
+════════════════════════════════════════════════ */
+.page-wrap {
+  overflow: hidden;
+  position: relative;
+}
+
+.page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 40px 16px;
+  opacity: 0;
+  transform: translateX(80px) scale(0.98);
+  transition: opacity 0.6s var(--ease-silk), transform 0.6s var(--ease-silk);
+  pointer-events: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold-dim) transparent;
+}
+.page::before, .page::after {
+  content: '';
+  flex: 1 0 0px;
+}
+
+.page::-webkit-scrollbar { width: 2px; }
+.page::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 1px; }
+
+.page.active {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: all;
+}
+
+.page.exit {
+  opacity: 0;
+  transform: translateX(-80px) scale(0.98);
+}
+
+/* ════════════════════════════════════════════════
+   叙事页面元素
+════════════════════════════════════════════════ */
+.scroll-chapter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.chapter-roman {
+  font-family: var(--font-latin);
+  font-size: 10px;
+  letter-spacing: 5px;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+}
+
+.chapter-gem {
+  width: 4px; height: 4px;
+  background: var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--gold);
+  flex-shrink: 0;
+}
+
+.chapter-label {
+  font-size: 11px;
+  letter-spacing: 5px;
+  color: hsla(38, 30%, 72%, 0.45);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 3.8vw, 50px);
+  color: var(--gold-bright);
+  text-align: center;
+  margin-bottom: 6px;
+  letter-spacing: 8px;
+  text-shadow: 0 0 30px hsla(42,72%,55%,0.4);
+  position: relative;
+}
+
+/* 标题下方金色底线 */
+.title-underline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.title-underline::before,
+.title-underline::after {
+  content: '';
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold-dim));
+}
+.title-underline::after { background: linear-gradient(to left, transparent, var(--gold-dim)); }
+.title-underline-gem {
+  width: 5px; height: 5px;
+  background: var(--gold);
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px var(--gold);
+}
+
+/* 散文正文 */
+.prose {
+  font-size: clamp(14.5px, 1.6vw, 18px);
+  line-height: 2.1;
+  color: hsla(38, 35%, 85%, 0.80);
+  text-align: justify;
+  max-width: clamp(500px, 48vw, 780px);
+  width: 100%;
+  text-indent: 2em;
+  position: relative;
+}
+
+/* 首字下沉 */
+.prose-dropcap::first-letter {
+  font-family: var(--font-display);
+  font-size: 3em;
+  line-height: 0.7;
+  float: left;
+  margin: 0.08em 0.08em 0 0;
+  color: var(--gold);
+  text-shadow: 0 0 20px hsla(42,72%,55%,0.5);
+}
+
+.prose .hl-gold  { color: var(--gold-bright); font-weight: 600; text-indent: 0; }
+.prose .hl-red   { color: hsl(355, 62%, 62%); text-indent: 0; }
+.prose .hl-jade  { color: hsl(158, 55%, 52%); text-indent: 0; }
+.prose .hl-dim   { font-size: 12px; color: hsla(38,30%,88%,0.30); letter-spacing: 2px; text-indent: 0; display: block; text-align: center; margin-top: 8px; }
+
+/* ════════════════════════════════════════════════
+   玻璃拟态面板（表单用）
+════════════════════════════════════════════════ */
+.glass-panel {
+  background: hsla(24, 14%, 11%, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 0 1px hsla(42,58%,55%,0.05) inset,
+    0 8px 32px hsla(0,0%,0%,0.4),
+    0 0 60px hsla(42,58%,25%,0.06);
+  padding: clamp(20px, 2.5vw, 32px) clamp(22px, 2.8vw, 36px);
+  width: 100%;
+  max-width: clamp(500px, 48vw, 780px);
+  margin-bottom: 14px;
+  position: relative;
+}
+
+/* 面板左侧金线 */
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 15%; bottom: 15%;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, var(--gold-dim), transparent);
+  border-radius: 0 1px 1px 0;
+}
+
+/* ════════════════════════════════════════════════
+   表单元素
+════════════════════════════════════════════════ */
+.form-label {
+  font-size: 11px;
+  letter-spacing: 5px;
+  color: hsla(42,58%,55%,0.7);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-label::before {
+  content: '';
+  display: inline-block;
+  width: 3px; height: 3px;
+  background: var(--gold);
+  transform: rotate(45deg);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px var(--gold);
+}
+
+.form-input {
+  width: 100%;
+  background: hsla(38,14%,8%,0.6);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px 14px;
+  color: var(--parchment);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.9;
+  outline: none;
+  transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+  margin-bottom: 16px;
+  resize: none;
+}
+.form-input:focus {
+  border-color: var(--border-hover);
+  background: hsla(38,14%,8%,0.8);
+  box-shadow: 0 0 0 3px hsla(42,58%,55%,0.08), 0 0 20px hsla(42,58%,55%,0.06);
+}
+.form-input::placeholder { color: hsla(38,30%,88%,0.22); }
+
+/* 性别选择 */
+.radio-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.radio-btn {
+  flex: 1;
+  min-width: 72px;
+  padding: 10px 6px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: hsla(38,30%,88%,0.5);
+  transition: all 0.25s var(--ease-silk);
+  background: transparent;
+  font-family: var(--font-body);
+  position: relative;
+  overflow: hidden;
+}
+.radio-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--gold-glow), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.radio-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--parchment);
+  transform: translateY(-1px);
+}
+.radio-btn:hover::after { opacity: 1; }
+.radio-btn.selected {
+  background: hsla(42,58%,30%,0.25);
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  box-shadow: 0 0 16px hsla(42,58%,55%,0.2), 0 0 0 1px hsla(42,58%,55%,0.15) inset;
+}
+.radio-btn.selected::after { opacity: 1; }
+
+/* ════════════════════════════════════════════════
+   开场选择
+════════════════════════════════════════════════ */
+.opening-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.opening-detail {
+  background: hsla(38,14%,8%,0.6);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 14px 16px;
+  min-height: 80px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.opening-detail:has(.opening-detail-text) {
+  border-color: var(--border-hover);
+}
+.opening-detail-text {
+  font-size: 13.5px;
+  line-height: 2;
+  color: hsla(38,30%,88%,0.7);
+}
+.opening-detail-placeholder {
+  font-size: 12px;
+  color: hsla(38,30%,88%,0.22);
+  text-align: center;
+  padding: 16px 0;
+  letter-spacing: 3px;
+}
+.opening-custom-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--parchment);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 2;
+  outline: none;
+  resize: none;
+  margin-bottom: 0;
+}
+.opening-custom-input::placeholder { color: hsla(38,30%,88%,0.22); }
+
+/* ════════════════════════════════════════════════
+   基本功加点
+════════════════════════════════════════════════ */
+.hint-box {
+  background: hsla(42,40%,20%,0.15);
+  border: 1px solid hsla(42,40%,38%,0.2);
+  border-left: 2px solid var(--gold-dim);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: hsla(38,30%,88%,0.45);
+  line-height: 1.8;
+  border-radius: 0 3px 3px 0;
+}
+
+.points-remaining {
+  text-align: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: hsla(38,30%,88%,0.45);
+}
+.points-remaining .pts-num {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--gold);
+  text-shadow: 0 0 16px hsla(42,72%,55%,0.5);
+  margin: 0 6px;
+  transition: all 0.3s;
+}
+.points-remaining .pts-num.flash {
+  animation: pts-flash 0.35s var(--ease-bounce);
+}
+@keyframes pts-flash {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.3); color: var(--gold-bright); }
+  100% { transform: scale(1); }
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 10px;
+  padding: 4px 0;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+.stat-row:hover { background: hsla(42,40%,50%,0.04); }
+
+.stat-name {
+  width: 68px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: hsla(38,30%,88%,0.65);
+  flex-shrink: 0;
+}
+
+.stat-bar-wrap {
+  flex: 1;
+  height: 3px;
+  background: hsla(38,30%,88%,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.stat-bar {
+  height: 100%;
+  background: linear-gradient(to right, var(--gold-dim), var(--gold-bright));
+  border-radius: 2px;
+  transition: width 0.35s var(--ease-silk);
+  position: relative;
+}
+/* 发光点 */
+.stat-bar::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 6px;
+  background: var(--gold-bright);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--gold);
+  opacity: 0.8;
+}
+
+.stat-val {
+  width: 28px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--gold-bright);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-latin);
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.stat-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.stat-btn {
+  width: 26px; height: 26px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--gold-dim);
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s var(--ease-silk);
+  line-height: 1;
+  position: relative;
+  overflow: hidden;
+}
+.stat-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--gold-glow);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.stat-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  transform: scale(1.1);
+  box-shadow: 0 0 10px hsla(42,58%,55%,0.3);
+}
+.stat-btn:hover:not(:disabled)::before { opacity: 1; }
+.stat-btn:active:not(:disabled) { transform: scale(0.95); }
+.stat-btn:disabled { opacity: 0.18; cursor: not-allowed; }
+
+/* ════════════════════════════════════════════════
+   武功卡片
+════════════════════════════════════════════════ */
+.kungfu-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.kungfu-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: all 0.3s var(--ease-silk);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: hsla(24,14%,8%,0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 卡片背景光效 */
+.kungfu-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.kungfu-card.tag-fist-card::before   { background: linear-gradient(135deg, hsla(355,62%,28%,0.15), transparent); }
+.kungfu-card.tag-staff-card::before  { background: linear-gradient(135deg, hsla(30,50%,28%,0.15), transparent); }
+.kungfu-card.tag-sword-card::before  { background: linear-gradient(135deg, hsla(158,42%,22%,0.15), transparent); }
+.kungfu-card.tag-blade-card::before  { background: linear-gradient(135deg, hsla(355,52%,28%,0.12), transparent); }
+.kungfu-card.tag-hidden-card::before { background: linear-gradient(135deg, hsla(220,52%,22%,0.15), transparent); }
+
+/* 左侧彩色边条 */
+.kungfu-card::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 10%; bottom: 10%;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  opacity: 0;
+  transition: opacity 0.3s, height 0.3s;
+}
+.kungfu-card.tag-fist-card::after   { background: var(--crimson); }
+.kungfu-card.tag-staff-card::after  { background: hsl(30,60%,50%); }
+.kungfu-card.tag-sword-card::after  { background: var(--jade); }
+.kungfu-card.tag-blade-card::after  { background: hsl(355,55%,52%); }
+.kungfu-card.tag-hidden-card::after { background: var(--azure); }
+
+.kungfu-card:hover {
+  border-color: var(--border-hover);
+  transform: translateX(3px);
+  box-shadow: 0 4px 20px hsla(0,0%,0%,0.3);
+}
+.kungfu-card:hover::before { opacity: 0.6; }
+.kungfu-card:hover::after  { opacity: 0.6; top: 5%; bottom: 5%; }
+
+.kungfu-card.selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px hsla(42,58%,55%,0.2),
+              0 4px 24px hsla(42,58%,25%,0.3),
+              0 0 50px hsla(42,58%,25%,0.12);
+  transform: translateX(4px);
+}
+.kungfu-card.selected::before { opacity: 1; }
+.kungfu-card.selected::after  { opacity: 1; top: 0; bottom: 0; }
+
+/* 武功图标区 */
+.kungfu-icon-wrap {
+  width: 38px; height: 38px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+  background: hsla(24,14%,6%,0.8);
+}
+.kungfu-card.selected .kungfu-icon-wrap {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+
+.kungfu-svg-icon {
+  width: 20px; height: 20px;
+  fill: none;
+  stroke-width: 1.5;
+  transition: stroke 0.3s;
+}
+/* 各类武功图标颜色 */
+.kungfu-card.tag-fist-card   .kungfu-svg-icon { stroke: hsl(355,52%,52%); }
+.kungfu-card.tag-staff-card  .kungfu-svg-icon { stroke: hsl(30,55%,55%); }
+.kungfu-card.tag-sword-card  .kungfu-svg-icon { stroke: hsl(158,45%,46%); }
+.kungfu-card.tag-blade-card  .kungfu-svg-icon { stroke: hsl(355,55%,55%); }
+.kungfu-card.tag-hidden-card .kungfu-svg-icon { stroke: hsl(220,52%,60%); }
+.kungfu-card.selected .kungfu-svg-icon { stroke: var(--gold-bright) !important; }
+
+.kungfu-info { flex: 1; min-width: 0; }
+.kungfu-name {
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--parchment2);
+  margin-bottom: 3px;
+  transition: color 0.3s;
+}
+.kungfu-card.selected .kungfu-name { color: var(--gold-bright); }
+.kungfu-desc {
+  font-size: 11px;
+  color: hsla(38,30%,88%,0.35);
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kungfu-tag {
+  font-family: var(--font-latin);
+  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid;
+  flex-shrink: 0;
+  letter-spacing: 1px;
+}
+.tag-fist   { border-color: hsla(355,62%,44%,0.4); color: hsl(355,62%,60%); }
+.tag-staff  { border-color: hsla(30,50%,40%,0.4);  color: hsl(30,55%,60%);  }
+.tag-sword  { border-color: hsla(158,42%,36%,0.4); color: hsl(158,45%,52%); }
+.tag-blade  { border-color: hsla(355,52%,38%,0.4); color: hsl(355,52%,58%); }
+.tag-hidden { border-color: hsla(220,52%,40%,0.4); color: hsl(220,52%,65%); }
+
+/* ════════════════════════════════════════════════
+   底部导航栏
+════════════════════════════════════════════════ */
+.bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 32px 16px;
+  position: relative;
+  flex-shrink: 0;
+}
+.bottom-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border), transparent);
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: hsla(38,30%,88%,0.5);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 3px;
+  border-radius: 3px;
+  transition: all 0.25s var(--ease-silk);
+  position: relative;
+  overflow: hidden;
+}
+.nav-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: hsla(42,40%,50%,0.06);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.nav-btn:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  color: var(--parchment);
+  transform: translateY(-1px);
+}
+.nav-btn:hover:not(:disabled)::before { opacity: 1; }
+.nav-btn:active:not(:disabled) { transform: translateY(0); }
+.nav-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+/* 导航按钮内的 SVG 图标 */
+.nav-icon {
+  width: 12px; height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  flex-shrink: 0;
+}
+
+.page-counter {
+  font-family: var(--font-latin);
+  font-size: 11px;
+  color: hsla(38,30%,88%,0.25);
+  letter-spacing: 3px;
+}
+
+/* 确认按钮 */
+.confirm-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 28px;
+  background: linear-gradient(135deg,
+    hsl(355,62%,34%) 0%,
+    hsl(355,55%,28%) 60%,
+    hsl(24,40%,18%) 100%);
+  border: 1px solid hsla(42,58%,55%,0.45);
+  color: var(--gold-bright);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 5px;
+  border-radius: 3px;
+  transition: all 0.3s var(--ease-silk);
+  box-shadow:
+    0 0 24px hsla(355,62%,28%,0.35),
+    0 0 0 1px hsla(42,58%,55%,0.1) inset;
+  position: relative;
+  overflow: hidden;
+}
+.confirm-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, hsla(42,72%,55%,0.12), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.confirm-btn:hover:not(:disabled) {
+  box-shadow:
+    0 0 40px hsla(355,62%,34%,0.5),
+    0 0 0 1px hsla(42,58%,55%,0.2) inset;
+  transform: translateY(-2px);
+  border-color: hsla(42,72%,68%,0.6);
+}
+.confirm-btn:hover:not(:disabled)::before { opacity: 1; }
+.confirm-btn:active:not(:disabled) { transform: translateY(0); }
+.confirm-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+/* ════════════════════════════════════════════════
+   成功遮罩
+════════════════════════════════════════════════ */
+#success-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--void);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.8s var(--ease-silk), visibility 0s linear 0.8s;
+}
+#success-overlay.show {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.8s var(--ease-silk), visibility 0s linear 0s;
+}
+
+.success-icon-wrap {
+  width: 72px; height: 72px;
+  border: 1px solid var(--border-hover);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 28px;
+  box-shadow: 0 0 40px var(--gold-glow), 0 0 80px var(--gold-glow);
+  transform: scale(0.5);
+  opacity: 0;
+  transition: transform 0.6s var(--ease-bounce) 0.2s, opacity 0.6s var(--ease-silk) 0.2s;
+}
+#success-overlay.show .success-icon-wrap {
+  transform: scale(1);
+  opacity: 1;
+}
+.success-icon-svg {
+  width: 32px; height: 32px;
+  stroke: var(--gold);
+  fill: none;
+  stroke-width: 1.5;
+}
+.success-text {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--gold);
+  letter-spacing: 10px;
+  text-shadow: 0 0 40px hsla(42,72%,55%,0.5);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.6s var(--ease-silk) 0.4s, transform 0.6s var(--ease-silk) 0.4s;
+}
+#success-overlay.show .success-text {
+  opacity: 1;
+  transform: translateY(0);
+}
+.success-sub {
+  font-size: 12px;
+  color: hsla(38,30%,88%,0.35);
+  letter-spacing: 5px;
+  margin-top: 12px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.6s var(--ease-silk) 0.6s, transform 0.6s var(--ease-silk) 0.6s;
+}
+#success-overlay.show .success-sub {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 成功页装饰 */
+.success-line {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold-dim), transparent);
+  margin: 20px 0;
+  width: 0;
+  opacity: 0;
+  transition: width 0.8s var(--ease-silk) 0.7s, opacity 0.8s var(--ease-silk) 0.7s;
+}
+#success-overlay.show .success-line {
+  width: 120px;
+  opacity: 1;
+}
+
+/* ════════════════════════════════════════════════
+   世界书提示弹窗
+════════════════════════════════════════════════ */
+#wb-notice-overlay {
+  position: fixed;
+  inset: 0;
+  background: hsla(24,18%,4%,0.75);
+  z-index: 600;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(4px);
+}
+
+.wb-modal {
+  background: var(--surface);
+  border: 1px solid var(--border-hover);
+  padding: 28px 26px;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: modal-in 0.35s var(--ease-silk);
+  border-radius: 4px;
+  box-shadow: 0 20px 60px hsla(0,0%,0%,0.5), 0 0 0 1px hsla(42,58%,55%,0.08) inset;
+  position: relative;
+}
+.wb-modal::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, var(--crimson-dim), var(--gold), var(--crimson-dim));
+  border-radius: 4px 4px 0 0;
+}
+@keyframes modal-in {
+  from { transform: translateY(16px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+.wb-modal-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--gold);
+  letter-spacing: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wb-title-icon {
+  width: 18px; height: 18px;
+  stroke: var(--gold);
+  fill: none;
+  stroke-width: 1.5;
+}
+.wb-modal-body {
+  font-size: 13px;
+  color: hsla(38,30%,88%,0.7);
+  line-height: 2;
+}
+.wb-modal-btn {
+  align-self: flex-end;
+  padding: 8px 22px;
+  border: 1px solid var(--border-hover);
+  background: transparent;
+  color: var(--gold-bright);
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.25s;
+}
+.wb-modal-btn:hover {
+  background: hsla(42,40%,50%,0.1);
+  box-shadow: 0 0 16px hsla(42,58%,55%,0.2);
+}
+
+/* ════════════════════════════════════════════════
+   入场动画（.page.active 子元素）
+════════════════════════════════════════════════ */
+.page.active > * {
+  animation: child-fade-in 0.5s var(--ease-silk) both;
+}
+.page.active > *:nth-child(1) { animation-delay: 0.05s; }
+.page.active > *:nth-child(2) { animation-delay: 0.12s; }
+.page.active > *:nth-child(3) { animation-delay: 0.18s; }
+.page.active > *:nth-child(4) { animation-delay: 0.24s; }
+.page.active > *:nth-child(5) { animation-delay: 0.30s; }
+.page.active > *:nth-child(6) { animation-delay: 0.36s; }
+
+@keyframes child-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ════════════════════════════════════════════════
+   响应式
+════════════════════════════════════════════════ */
+@media (max-height: 680px) {
+  .title-main { font-size: 24px; }
+  .page-title { font-size: 28px; }
+  .prose      { font-size: 13.5px; }
+  .header-bar { padding: 14px 32px 10px; }
+}
+
+/* 高分辨率大屏适配 */
+@media (min-width: 1400px) {
+  .header-bar { padding: 28px 40px 18px; }
+  .progress-row { gap: 14px; padding: 14px 40px; }
+  .prog-dot { width: 10px; height: 10px; }
+  .prog-dot.active { width: 30px; }
+  .page { padding: 20px 50px 20px; }
+  .form-label { font-size: 13px; letter-spacing: 6px; }
+  .form-input { font-size: 15px; padding: 12px 18px; }
+  .radio-btn { padding: 14px 10px; font-size: 15px; }
+  .hint-box { font-size: 13.5px; padding: 14px 18px; }
+  .points-remaining .pts-num { font-size: 32px; }
+  .title-sub { font-size: 11px; letter-spacing: 8px; }
+  .chapter-label { font-size: 13px; }
+  .title-underline { margin-bottom: 28px; }
+  .title-underline::before, .title-underline::after { width: 90px; }
+}
+
+/* ════════════════════════════════════════════════
+   BGM 音乐开关按钮
+════════════════════════════════════════════════ */
+#bgm-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 999;
+  background: var(--surface2);
+  color: var(--gold);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s var(--ease-silk);
+  backdrop-filter: blur(6px);
+  letter-spacing: 2px;
+}
+#bgm-toggle:hover {
+  border-color: var(--border-hover);
+  color: var(--gold-bright);
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+#bgm-toggle.muted {
+  color: var(--parchment2);
+  border-color: hsla(42, 58%, 55%, 0.08);
+}
+
+/* ════════════════════════════════════════════════
+   移动端适配
+════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  #app { max-width: 100%; }
+  .vert-line { display: none; }
+  .header-bar { padding: 14px 16px 10px; }
+  .title-main { letter-spacing: clamp(6px, 2vw, 14px); }
+  .title-lockup::before, .title-lockup::after { width: 24px; }
+  .title-lockup::before { right: calc(100% + 6px); }
+  .title-lockup::after  { left:  calc(100% + 6px); }
+  .progress-row { padding: 8px 16px; }
+  .page { padding: 10px 16px 12px; }
+  .prose { max-width: 100%; }
+  .glass-panel { max-width: 100%; padding: 16px 14px; }
+  .bottom-bar { padding: 10px 16px 14px; }
+  .nav-btn { padding: 8px 14px; font-size: 11px; letter-spacing: 2px; }
+  .confirm-btn { padding: 9px 20px; font-size: 16px; letter-spacing: 3px; }
+  .opening-grid { grid-template-columns: 1fr; }
+  .stat-name { width: 58px; font-size: 11px; letter-spacing: 1px; }
+  .stat-btn { width: 28px; height: 28px; }
+  .kungfu-card { padding: 10px 12px; gap: 10px; }
+  .kungfu-desc { font-size: 10px; }
+  #bgm-toggle { padding: 4px 10px; font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<audio id="bgm-audio" src="https://media.soundgasm.net/sounds/11787d2a5c8a9be299e5fc83858aae18e81b43d9.m4a" loop preload="auto"></audio>
+<button id="bgm-toggle">音乐开</button>
+
+<canvas id="particle-canvas"></canvas>
+<div class="ambient-glow"></div>
+<div class="noise-overlay"></div>
+<div class="vert-line"></div>
+<div class="vert-line"></div>
+
+<!-- 成功遮罩 -->
+<div id="success-overlay">
+  <div class="success-icon-wrap">
+    <svg class="success-icon-svg" viewBox="0 0 24 24">
+      <path d="M12 2L14.5 9H22L16 13.5L18.5 20.5L12 16L5.5 20.5L8 13.5L2 9H9.5L12 2Z" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <div class="success-line"></div>
+  <div class="success-text">踏入江湖</div>
+  <div class="success-sub">命运的齿轮，已然转动</div>
+  <div class="success-line"></div>
+</div>
+
+<!-- 世界书条目提示 -->
+<div id="wb-notice-overlay">
+  <div class="wb-modal">
+    <div class="wb-modal-title">
+      <svg class="wb-title-icon" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/>
+      </svg>
+      世界书条目已创建
+    </div>
+    <div class="wb-modal-body" id="wb-notice-text"></div>
+    <button class="wb-modal-btn" onclick="document.getElementById('wb-notice-overlay').style.display='none'">知　　道　　了</button>
+  </div>
+</div>
+
+<div id="app">
+  <!-- 顶部标题 -->
+  <header class="header-bar" role="banner">
+    <div class="title-lockup">
+      <h1 class="title-main">天书江湖录</h1>
+      <p class="title-sub">Chronicles of the Celestial Tome</p>
+    </div>
+  </header>
+
+  <!-- 进度点 -->
+  <nav class="progress-row" id="progress-row" aria-label="步骤进度"></nav>
+
+  <!-- 页面内容 -->
+  <main class="page-wrap" id="page-wrap"></main>
+
+  <!-- 底部导航 -->
+  <footer class="bottom-bar">
+    <button class="nav-btn" id="btn-prev" onclick="navigate(-1)" aria-label="前一页">
+      <svg class="nav-icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      前页
+    </button>
+    <span class="page-counter" id="page-counter" aria-live="polite"></span>
+    <button class="nav-btn" id="btn-next" onclick="navigate(1)" aria-label="下一页">
+      次页
+      <svg class="nav-icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <button class="confirm-btn" id="btn-confirm" onclick="confirmSetup()" style="display:none" aria-label="踏入江湖，开始游戏">
+      <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0;" viewBox="0 0 24 24">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+      踏入江湖
+    </button>
+  </footer>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  BGM 控制
+// ══════════════════════════════════════════════════════
+(function initBGM() {
+  const audio = document.getElementById('bgm-audio');
+  const btn   = document.getElementById('bgm-toggle');
+  let playing = true;
+
+  function tryPlay() {
+    audio.play().catch(() => {});
+  }
+
+  // 尝试自动播放
+  tryPlay();
+
+  // 浏览器可能阻止自动播放，首次用户交互时恢复
+  function resumeOnInteraction() {
+    if (playing && audio.paused) tryPlay();
+    document.removeEventListener('click', resumeOnInteraction);
+    document.removeEventListener('keydown', resumeOnInteraction);
+  }
+  document.addEventListener('click', resumeOnInteraction);
+  document.addEventListener('keydown', resumeOnInteraction);
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    playing = !playing;
+    if (playing) {
+      tryPlay();
+      btn.textContent = '音乐开';
+      btn.classList.remove('muted');
+    } else {
+      audio.pause();
+      btn.textContent = '音乐关';
+      btn.classList.add('muted');
+    }
+  });
+})();
+
+// ══════════════════════════════════════════════════════
+//  粒子画布（飘散的金色尘埃）
+// ══════════════════════════════════════════════════════
+(function initParticles() {
+  const canvas = document.getElementById('particle-canvas');
+  const ctx    = canvas.getContext('2d');
+  let W, H, particles;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function createParticles() {
+    particles = Array.from({ length: 55 }, () => ({
+      x:    Math.random() * W,
+      y:    Math.random() * H,
+      r:    0.4 + Math.random() * 1.2,
+      vx:   (Math.random() - 0.5) * 0.18,
+      vy:   -0.08 - Math.random() * 0.18,
+      a:    Math.random(),
+      va:   (Math.random() - 0.5) * 0.004,
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (const p of particles) {
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.a  += p.va;
+      if (p.a < 0) { p.a = 0; p.va = Math.abs(p.va); }
+      if (p.a > 1) { p.a = 1; p.va = -Math.abs(p.va); }
+      if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+      if (p.x < -10) { p.x = W + 10; }
+      if (p.x > W + 10) { p.x = -10; }
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(42, 65%, 60%, ${p.a * 0.55})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  createParticles();
+  draw();
+  window.addEventListener('resize', () => { resize(); createParticles(); });
+})();
+
+// ══════════════════════════════════════════════════════
+//  数据
+// ══════════════════════════════════════════════════════
+const PAGES = [
+  { id: 'bg1',         label: '序章·一' },
+  { id: 'bg2',         label: '序章·二' },
+  { id: 'bg3',         label: '序章·三' },
+  { id: 'choose_path', label: '选择路径' },
+  { id: 'transmigrate',label: '魂穿' },
+  { id: 'player1',     label: '自定义·一' },
+  { id: 'opening',     label: '开场选择' },
+  { id: 'player2',     label: '自定义·三' },
+];
+
+// 基本功类别 → CSS tag class / SVG icon path
+const SKILL_META = {
+  '拳掌':    { tagClass: 'tag-fist',   iconPath: 'M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8l3 3 1 1h5.5l.4-.3 1.2-2.4A4 4 0 0 0 18 12v-1.5a2 2 0 0 0-2-2h-2z', cardClass: 'tag-fist-card' },
+  '棍枪':    { tagClass: 'tag-staff',  iconPath: 'M12 2L12 22M8 6l4-4 4 4M8 18l4 4 4-4', cardClass: 'tag-staff-card' },
+  '剑':      { tagClass: 'tag-sword',  iconPath: 'M14.5 17.5L3 6V3h3l11.5 11.5M14.5 17.5L18 21M14.5 17.5l2-2M3 9l3-3M9 3l-3 3', cardClass: 'tag-sword-card' },
+  '刀':      { tagClass: 'tag-blade',  iconPath: 'M3 3l18 18M3 21l9-9M6 6l-3-3M21 3H12l-4 4 9 9 4-4V3z', cardClass: 'tag-blade-card' },
+  '暗器':    { tagClass: 'tag-hidden', iconPath: 'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z', cardClass: 'tag-hidden-card' },
+  '内功底蕴':{ tagClass: 'tag-staff',  iconPath: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4l3 3', cardClass: 'tag-staff-card' },
+};
+
+let _kungfuLibCache = null;
+
+function _findGetAllKungfu() {
+  const candidates = [window, window.parent, window.top];
+  try { if (window.parent?.parent) candidates.push(window.parent.parent); } catch(e){}
+  for (const w of candidates) {
+    try { if (typeof w?.WX_GET_ALL_KUNGFU === 'function') return w.WX_GET_ALL_KUNGFU; } catch(e){}
+  }
+  return null;
+}
+
+function buildKungfuList() {
+  const getAllKungfu = _findGetAllKungfu();
+  if (typeof getAllKungfu !== 'function') {
+    return [
+      { id: '人民铁拳', name: '人民铁拳', desc: '朴实无华的拳法，以力压人，刚猛直接。', tag: '拳掌', tagClass: 'tag-fist', cardClass: 'tag-fist-card', stat: '拳掌' },
+      { id: '农夫棍法', name: '农夫棍法', desc: '田间地头练就的棍术，招招扎实稳健。', tag: '棍枪', tagClass: 'tag-staff', cardClass: 'tag-staff-card', stat: '棍枪' },
+      { id: '农夫剑法', name: '农夫剑法', desc: '简练的剑招，胜在灵活轻盈，以巧取胜。', tag: '剑', tagClass: 'tag-sword', cardClass: 'tag-sword-card', stat: '剑' },
+      { id: '农夫刀法', name: '农夫刀法', desc: '大开大合，刚猛霸道，一往无前的刀术。', tag: '刀', tagClass: 'tag-blade', cardClass: 'tag-blade-card', stat: '刀' },
+      { id: '弹弓射击', name: '弹弓射击', desc: '百步穿杨，以巧制胜，出奇不意的暗器技。', tag: '暗器', tagClass: 'tag-hidden', cardClass: 'tag-hidden-card', stat: '暗器' },
+    ];
+  }
+  const lib = getAllKungfu();
+  _kungfuLibCache = lib;
+  const STARTER_NAMES = ['人民铁拳','农夫棍法','农夫剑法','农夫刀法','弹弓射击'];
+  const STARTER_STAT  = { '人民铁拳':'拳掌', '农夫棍法':'棍枪', '农夫剑法':'剑', '农夫刀法':'刀', '弹弓射击':'暗器' };
+  return STARTER_NAMES
+    .map(name => lib[name] || Object.values(lib).find(k => k.名字 === name))
+    .filter(Boolean)
+    .map(k => {
+      const stat = STARTER_STAT[k.名字] || Object.keys(k.基本功要求 || {})[0] || '拳掌';
+      const meta = SKILL_META[stat] || { tagClass: 'tag-fist', cardClass: 'tag-fist-card' };
+      return {
+        id:        k.名字,
+        name:      k.名字,
+        desc:      k.描述 || '',
+        tag:       stat,
+        tagClass:  meta.tagClass,
+        cardClass: meta.cardClass,
+        stat:      stat,
+      };
+    });
+}
+
+const KUNGFU_LIST = buildKungfuList();
+const STAT_KEYS   = ['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
+const BASE_VAL    = 5;
+const TOTAL_PTS   = 30;
+
+const OPENING_CHOICES = [
+  { id: 1, name: '全真教开局', detail: '你穿越到全真教的一名不受待见的小弟子身上，且看你如何逆袭', editable: false },
+  { id: 2, name: '少林寺开局', detail: '你是一名少林寺外门弟子，这天寺门外来了两名年轻女子来讨要童子尿...师傅让你去打发她们走。', editable: false },
+  { id: 3, name: '华山开局',   detail: '你穿越到华山派的一名仆从身上，搞清楚状况后，看过《笑傲江湖》的你清楚地记得这里有两大绝学：辟邪剑法、独孤九剑。', editable: false },
+  { id: 4, name: '自定义开局', detail: '', editable: true },
+];
+
+// ══════════════════════════════════════════════════════
+//  状态
+// ══════════════════════════════════════════════════════
+let currentPage = 0;
+let state = {
+  gender:      '',
+  appearance:  '',
+  personality: '',
+  openingId:   0,
+  openingCustom: '',
+  stats: { 拳掌: BASE_VAL, 棍枪: BASE_VAL, 剑: BASE_VAL, 刀: BASE_VAL, 暗器: BASE_VAL, 内功底蕴: BASE_VAL },
+  kungfu:      '',
+  pointsLeft:  TOTAL_PTS,
+  path:        '',
+};
+
+// ══════════════════════════════════════════════════════
+//  渲染页面内容
+// ══════════════════════════════════════════════════════
+function getKungfuSVG(stat) {
+  const meta = SKILL_META[stat] || SKILL_META['拳掌'];
+  return `<svg class="kungfu-svg-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="${meta.iconPath}"/></svg>`;
+}
+
+function getPageHTML(id) {
+  switch(id) {
+    case 'bg1': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Vol. I</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">天书碎裂 · 万象归一</div>
+      </div>
+      <h2 class="page-title">天书江湖录</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="prose prose-dropcap">
+        天地之间，有一部记载万古因果的<span class="hl-gold">《天书》</span>，它记录了无数武侠世界的历史与命运——<span class="hl-gold">郭靖</span>的侠义，<span class="hl-gold">乔峰</span>的悲歌，<span class="hl-gold">杨过</span>的痴情，<span class="hl-gold">令狐冲</span>的洒脱……每一字，皆是血泪铸就；每一行，皆是命运刻写。
+        <br><br>
+        某日，天书无故震颤，<span class="hl-red">轰然碎裂</span>——无数碎片散落虚空，携着各自所载人物命运中最具代表性的时刻，如流星般坠入同一片大陆。
+      </div>`;
+
+    case 'bg2': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Vol. II</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">英雄汇聚 · 命运交织</div>
+      </div>
+      <h2 class="page-title">群雄同世</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="prose">
+        如今，这些人——<span class="hl-gold">无论出自哪个时代、哪部天书、是生是死</span>——皆以真实的血肉之躯共存于此。
+        <br><br>
+        <span class="hl-gold">郭靖</span>可能正在襄阳城外练功，<span class="hl-gold">乔峰</span>可能在少室山下饮酒，<span class="hl-gold">杨过与小龙女</span>或许在终南山重逢，<span class="hl-gold">欧阳锋与洪七公</span>仍在为天下第一斗嘴，<span class="hl-gold">王重阳与张三丰</span>论道于武当之巅。
+        <br><br>
+        他们保留了完整的记忆，记得自己的过去、恩怨、爱恨。但在这个世界——<span class="hl-red">仇人可以和解，故人可以重逢，命运可以改写。</span>
+      </div>`;
+
+    case 'bg3': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Vol. III</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">旅人降临 · 故事起始</div>
+      </div>
+      <h2 class="page-title">你的登场</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="prose">
+        就在天书碎裂后不久，你也来到了这片大陆。
+        <br><br>
+        说来荒唐——你只不过是个普通人，却不知为何被天书的余波卷入，以<span class="hl-gold">真实的身躯</span>落于此地。没有传说中的天赋异禀，没有名师指路，你只是个手无缚鸡之力的外来者。
+        <br><br>
+        <span class="hl-red">现在，是时候决定你将成为怎样的人了。</span>
+        <span class="hl-dim">请自定义你的初始设定</span>
+      </div>`;
+
+    case 'choose_path': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Vol. IV</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">命运抉择</div>
+      </div>
+      <h2 class="page-title" style="font-size:28px;letter-spacing:6px">你的道路</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="prose" style="margin-bottom:20px">
+        你可以选择以一个全新的身份踏入江湖，从零开始书写自己的传奇；<br>
+        也可以选择<span class="hl-gold">魂穿</span>到某位原著人物身上，继承他的一切，改写他的命运。
+      </div>
+      <div class="glass-panel" style="display:flex;flex-direction:column;gap:14px;align-items:center">
+        <button class="radio-btn" style="width:100%;padding:16px;font-size:16px;letter-spacing:3px" onclick="choosePath('transmigrate')">魂穿原著角色</button>
+        <button class="radio-btn" style="width:100%;padding:16px;font-size:16px;letter-spacing:3px" onclick="choosePath('create_new')">创建新角色</button>
+      </div>`;
+
+    case 'transmigrate': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Transmigrate</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">魂穿 · 夺舍重生</div>
+      </div>
+      <h2 class="page-title" style="font-size:26px;letter-spacing:6px">你想穿越成谁？</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="glass-panel">
+        <label class="form-label" for="transmigrate-who">穿越目标</label>
+        <input class="form-input" id="transmigrate-who" type="text" value="林平之"
+          placeholder="输入原著角色名" aria-label="穿越目标角色">
+
+        <label class="form-label" for="transmigrate-when" style="margin-top:14px">穿越成这个人物的哪个时期？</label>
+        <input class="form-input" id="transmigrate-when" type="text" value="阉割掉自己的次日"
+          placeholder="输入时间节点" aria-label="穿越时期">
+
+        <button class="confirm-btn" style="margin-top:20px;width:100%;justify-content:center" onclick="confirmTransmigrate()">
+          <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0;" viewBox="0 0 24 24">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          穿越
+        </button>
+      </div>`;
+
+    case 'player1': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Create</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">角色创建 · 第一步</div>
+      </div>
+      <h2 class="page-title" style="font-size:26px;letter-spacing:6px">外貌与性格</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="glass-panel">
+        <label class="form-label" for="gender-row-el">性　　别</label>
+        <div class="radio-row" id="gender-row" role="group" aria-label="性别选择">
+          ${['男','女','不男不女'].map(g=>`<button class="radio-btn" id="gender-btn-${g}" onclick="selectGender('${g}')" aria-pressed="false">${g}</button>`).join('')}
+        </div>
+
+        <label class="form-label" for="appearance-input">外　　貌</label>
+        <textarea class="form-input" id="appearance-input" rows="3"
+          placeholder="描述你的外貌特征，如：身形修长，面容清秀，一双鹰目炯炯有神……"
+          aria-label="外貌描述"></textarea>
+
+        <label class="form-label" for="personality-input">性　　格</label>
+        <textarea class="form-input" id="personality-input" rows="3"
+          placeholder="描述你的性格特点，如：外冷内热，表面淡漠，实则重情重义……"
+          aria-label="性格描述" style="margin-bottom:0"></textarea>
+      </div>`;
+
+    case 'opening': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Create</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">角色创建 · 开场选择</div>
+      </div>
+      <h2 class="page-title" style="font-size:26px;letter-spacing:6px">开场选择</h2>
+      <div class="title-underline"><div class="title-underline-gem"></div></div>
+      <div class="glass-panel">
+        <label class="form-label">选择你的开局</label>
+        <div class="opening-grid">
+          ${OPENING_CHOICES.map(c=>`<button class="radio-btn" id="opening-btn-${c.id}" onclick="selectOpening(${c.id})" aria-pressed="false">${c.name}</button>`).join('')}
+        </div>
+        <div class="opening-detail" id="opening-detail-box">
+          <div class="opening-detail-placeholder" id="opening-placeholder">选择一个开局查看详情</div>
+          <div class="opening-detail-text" id="opening-detail-text" style="display:none"></div>
+          <textarea class="opening-custom-input form-input" id="opening-custom-input" rows="3"
+            placeholder="描述你的自定义开局场景……"
+            oninput="state.openingCustom=this.value.trim()"
+            style="display:none;margin-bottom:0"></textarea>
+        </div>
+      </div>`;
+
+    case 'player2': return `
+      <div class="scroll-chapter">
+        <div class="chapter-roman">Create</div>
+        <div class="chapter-gem"></div>
+        <div class="chapter-roman">角色创建 · 第三步</div>
+      </div>
+      <h2 class="page-title" style="font-size:24px;letter-spacing:5px;margin-bottom:4px">基本功 · 初始武学</h2>
+      <div class="title-underline" style="margin-bottom:10px"><div class="title-underline-gem"></div></div>
+      <div class="glass-panel" style="padding:16px 18px">
+        <div class="hint-box">基本功决定你能学习和装备哪一类武功与武器。初始各项为 ${BASE_VAL} 点，另有 <strong style="color:var(--gold-bright)">${TOTAL_PTS}</strong> 点可自由分配。</div>
+        <div class="points-remaining">
+          剩余可分配点数
+          <span class="pts-num" id="pts-left">${TOTAL_PTS}</span>
+          点
+        </div>
+        <div id="stats-panel">${renderStats()}</div>
+      </div>
+      <div style="width:100%;max-width:clamp(500px,48vw,780px)">
+        <label class="form-label" style="margin-bottom:10px;padding-left:2px">初始武学（择一而学）</label>
+        <div class="kungfu-grid" id="kungfu-grid">
+          ${KUNGFU_LIST.map(k=>`
+            <div class="kungfu-card ${k.cardClass}" id="kf-${k.id}" onclick="selectKungfu('${k.id}')" role="button" aria-pressed="false" tabindex="0">
+              <div class="kungfu-icon-wrap">${getKungfuSVG(k.stat)}</div>
+              <div class="kungfu-info">
+                <div class="kungfu-name">${k.name}</div>
+                <div class="kungfu-desc">${k.desc}</div>
+              </div>
+              <div class="kungfu-tag ${k.tagClass}">${k.tag}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+}
+
+function renderStats() {
+  return STAT_KEYS.map(key => {
+    const val = state.stats[key];
+    const pct = ((val - BASE_VAL) / TOTAL_PTS) * 100;
+    return `
+      <div class="stat-row" id="row-${key}">
+        <div class="stat-name">${key}</div>
+        <div class="stat-bar-wrap">
+          <div class="stat-bar" id="bar-${key}" style="width:${Math.max(pct,0)}%"></div>
+        </div>
+        <div class="stat-val" id="val-${key}">${val}</div>
+        <div class="stat-btns">
+          <button class="stat-btn" id="minus-${key}" onclick="adjustStat('${key}',-1)" aria-label="${key}减少">−</button>
+          <button class="stat-btn" id="plus-${key}"  onclick="adjustStat('${key}',+1)"  aria-label="${key}增加">＋</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  进度点
+// ══════════════════════════════════════════════════════
+function buildProgress() {
+  const row = document.getElementById('progress-row');
+  row.innerHTML = PAGES.map((_,i) => `<div class="prog-dot" id="dot-${i}" aria-hidden="true"></div>`).join('');
+}
+
+function updateProgress() {
+  PAGES.forEach((_,i) => {
+    const d = document.getElementById('dot-' + i);
+    d.className = 'prog-dot' + (i === currentPage ? ' active' : i < currentPage ? ' done' : '');
+  });
+  document.getElementById('page-counter').textContent = `${currentPage+1} / ${PAGES.length}`;
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+
+  const curId = PAGES[currentPage].id;
+  const hideNext = curId === 'choose_path' || curId === 'transmigrate';
+  const isLast = currentPage === PAGES.length - 1;
+  document.getElementById('btn-next').style.display    = (isLast || hideNext) ? 'none' : '';
+  document.getElementById('btn-confirm').style.display = isLast ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════
+//  页面渲染
+// ══════════════════════════════════════════════════════
+function buildPages() {
+  const wrap = document.getElementById('page-wrap');
+  wrap.innerHTML = '';
+  PAGES.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'page' + (i === 0 ? ' active' : '');
+    div.id = 'page-' + p.id;
+    div.setAttribute('role', 'region');
+    div.setAttribute('aria-label', p.label);
+    div.innerHTML = getPageHTML(p.id);
+    wrap.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  导航
+// ══════════════════════════════════════════════════════
+function navigate(dir) {
+  if (PAGES[currentPage].id === 'player1') syncPlayer1();
+
+  const oldPage = document.getElementById('page-' + PAGES[currentPage].id);
+  oldPage.classList.remove('active');
+  oldPage.classList.add('exit');
+
+  const curId = PAGES[currentPage].id;
+
+  if (dir === 1 && curId === 'choose_path') {
+    if (state.path === 'transmigrate') {
+      currentPage = PAGES.findIndex(p => p.id === 'transmigrate');
+    } else {
+      currentPage = PAGES.findIndex(p => p.id === 'player1');
+    }
+  } else if (dir === -1 && (curId === 'transmigrate' || curId === 'player1')) {
+    currentPage = PAGES.findIndex(p => p.id === 'choose_path');
+  } else {
+    currentPage = Math.max(0, Math.min(PAGES.length - 1, currentPage + dir));
+  }
+
+  setTimeout(() => { oldPage.classList.remove('exit'); }, 600);
+
+  const newPage = document.getElementById('page-' + PAGES[currentPage].id);
+  // 强制重排以触发动画
+  void newPage.offsetWidth;
+  newPage.classList.add('active');
+
+  updateProgress();
+
+  if (PAGES[currentPage].id === 'player2') {
+    document.getElementById('stats-panel').innerHTML = renderStats();
+    document.getElementById('pts-left').textContent  = state.pointsLeft;
+    updateStatButtons();
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  交互
+// ══════════════════════════════════════════════════════
+function selectGender(g) {
+  state.gender = g;
+  document.querySelectorAll('#gender-row .radio-btn').forEach(btn => {
+    const sel = btn.textContent.trim() === g;
+    btn.classList.toggle('selected', sel);
+    btn.setAttribute('aria-pressed', sel ? 'true' : 'false');
+  });
+}
+
+function syncPlayer1() {
+  const app = document.getElementById('appearance-input');
+  const per = document.getElementById('personality-input');
+  if (app) state.appearance  = app.value.trim();
+  if (per) state.personality = per.value.trim();
+}
+
+function choosePath(path) {
+  state.path = path;
+  navigate(1);
+}
+
+async function confirmTransmigrate() {
+  const whoEl  = document.getElementById('transmigrate-who');
+  const whenEl = document.getElementById('transmigrate-when');
+  const who  = (whoEl?.value || '').trim();
+  const when = (whenEl?.value || '').trim();
+  if (!who)  { alert('请输入穿越目标角色'); return; }
+  if (!when) { alert('请输入穿越时期'); return; }
+
+  const btn = document.querySelector('#page-transmigrate .confirm-btn');
+  btn.disabled = true;
+  btn.innerHTML = `
+    <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;animation:spin 1s linear infinite" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="10"/>
+    </svg>
+    正在穿越…`;
+
+  try {
+    // ── 1. 注入世界书"勿动"条目 ──
+    const parent = window.parent;
+    const getNames  = parent.getCharWorldbookNames  || window.getCharWorldbookNames;
+    const getWB     = parent.getWorldbook            || window.getWorldbook;
+    const replaceWB = parent.replaceWorldbook         || window.replaceWorldbook;
+
+    if (getNames && getWB && replaceWB) {
+      const books = getNames('current');
+      if (books?.primary) {
+        const entries = await getWB(books.primary);
+        const target = entries.find(e => e.name === '勿动');
+        if (target) {
+          target.content = `<%_\nif (TavernHelper.getLastMessageId() < 2){\nprint(\`\n【开场】\n注意{{user}}穿越到【${who}】身上，时间是【${when}】的时期。\n请查看原著，**初始化更改变量\\\${玩家}的所有节点**（姓名不改），**注意更新等级、武学等变量，按照原著来**\n同时更要参考\\\${武功}，不可出现上面没有的武功。\n\`);\n}\n_%>`;
+          await replaceWB(books.primary, entries, { render: 'debounced' });
+          console.log('[魂穿] 世界书"勿动"已写入');
+        } else {
+          console.warn('[魂穿] 未找到"勿动"条目');
+        }
+      }
+    }
+
+    // ── 2. 写武功库到MVU ──
+    const Mvu = window.parent?.Mvu || window.Mvu;
+    if (!Mvu) throw new Error('MVU未加载');
+
+    let data = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+    if (!data) data = { stat_data: {} };
+    if (!data.stat_data) data.stat_data = {};
+
+    const _ = window.parent?._ || window._;
+
+    let allKungfuRecord;
+    if (_kungfuLibCache && typeof _kungfuLibCache === 'object' && Object.keys(_kungfuLibCache).length > 5) {
+      allKungfuRecord = Object.fromEntries(
+        Object.values(_kungfuLibCache).map(k => [k.名字, k.类别 || '普通'])
+      );
+    } else {
+      const getAllKungfu = _findGetAllKungfu();
+      if (typeof getAllKungfu === 'function') {
+        const lib = getAllKungfu();
+        _kungfuLibCache = lib;
+        allKungfuRecord = Object.fromEntries(
+          Object.values(lib).map(k => [k.名字, k.类别 || '普通'])
+        );
+      } else {
+        try {
+          const priorData = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+          const priorKungfu = priorData?.stat_data?.武功;
+          if (priorKungfu && Object.keys(priorKungfu).length > 5) {
+            allKungfuRecord = priorKungfu;
+          } else {
+            throw new Error('MVU中武功库不完整');
+          }
+        } catch(mvuErr) {
+          console.warn('[魂穿] 武功库兜底:', mvuErr.message);
+          allKungfuRecord = Object.fromEntries(KUNGFU_LIST.map(k => [k.id, '普通']));
+        }
+      }
+    }
+    _.set(data, 'stat_data.武功', allKungfuRecord);
+    console.log('[魂穿] 武功库写入MVU，共', Object.keys(allKungfuRecord).length, '个');
+
+    await Mvu.replaceMvuData(data, { type: 'message', message_id: 0 });
+
+    // ── 3. 填入ST输入框 ──
+    const docs = [];
+    try { if (window.top?.document)    docs.push(window.top.document);    } catch(e){}
+    try { if (window.parent?.document) docs.push(window.parent.document); } catch(e){}
+    docs.push(document);
+    let textarea = null;
+    for (const doc of docs) {
+      try { textarea = doc.getElementById('send_textarea'); if (textarea) break; } catch(e) {}
+    }
+    if (textarea) {
+      textarea.value = '根据设定剧情，开场吧。';
+      textarea.dispatchEvent(new Event('input',  { bubbles: true }));
+      textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      textarea.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      textarea.focus();
+    }
+
+    // ── 4. 显示成功遮罩 ──
+    document.querySelector('.success-text').textContent = '魂穿成功';
+    document.querySelector('.success-sub').textContent  = '开始你的江湖吧！';
+    showSuccess();
+
+    // ── 5. 弹出提示弹窗 ──
+    const noticeOverlay = document.getElementById('wb-notice-overlay');
+    const noticeText    = document.getElementById('wb-notice-text');
+    if (noticeText) noticeText.textContent = '注意！务必点击日常UI的金钱，点击彩蛋弹窗的确定，修正你的属性值。';
+    if (noticeOverlay) {
+      setTimeout(() => { noticeOverlay.style.display = 'flex'; }, 1200);
+    }
+
+  } catch(e) {
+    console.error('[魂穿] 错误:', e);
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0;" viewBox="0 0 24 24">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      穿越`;
+    alert('发生错误：' + e.message);
+  }
+}
+
+function adjustStat(key, delta) {
+  if (delta > 0 && state.pointsLeft <= 0) return;
+  if (delta < 0 && state.stats[key] <= BASE_VAL) return;
+  state.stats[key]  += delta;
+  state.pointsLeft  -= delta;
+
+  document.getElementById('val-' + key).textContent = state.stats[key];
+
+  const ptsEl = document.getElementById('pts-left');
+  ptsEl.textContent = state.pointsLeft;
+  ptsEl.classList.remove('flash');
+  void ptsEl.offsetWidth;
+  ptsEl.classList.add('flash');
+
+  const pct = ((state.stats[key] - BASE_VAL) / TOTAL_PTS) * 100;
+  document.getElementById('bar-' + key).style.width = Math.max(pct, 0) + '%';
+  updateStatButtons();
+}
+
+function updateStatButtons() {
+  STAT_KEYS.forEach(key => {
+    const plus  = document.getElementById('plus-'  + key);
+    const minus = document.getElementById('minus-' + key);
+    if (plus)  plus.disabled  = state.pointsLeft <= 0;
+    if (minus) minus.disabled = state.stats[key] <= BASE_VAL;
+  });
+}
+
+function selectKungfu(id) {
+  state.kungfu = id;
+  KUNGFU_LIST.forEach(k => {
+    const card = document.getElementById('kf-' + k.id);
+    if (card) {
+      const sel = k.id === id;
+      card.classList.toggle('selected', sel);
+      card.setAttribute('aria-pressed', sel ? 'true' : 'false');
+    }
+  });
+}
+
+function selectOpening(id) {
+  state.openingId = id;
+  OPENING_CHOICES.forEach(c => {
+    const btn = document.getElementById('opening-btn-' + c.id);
+    if (btn) {
+      const sel = c.id === id;
+      btn.classList.toggle('selected', sel);
+      btn.setAttribute('aria-pressed', sel ? 'true' : 'false');
+    }
+  });
+  const choice = OPENING_CHOICES.find(c => c.id === id);
+  const placeholder = document.getElementById('opening-placeholder');
+  const detailText  = document.getElementById('opening-detail-text');
+  const customInput = document.getElementById('opening-custom-input');
+  if (!choice) return;
+  if (choice.editable) {
+    placeholder.style.display = 'none';
+    detailText.style.display  = 'none';
+    customInput.style.display = '';
+    customInput.focus();
+  } else {
+    placeholder.style.display = 'none';
+    detailText.style.display  = '';
+    detailText.textContent    = choice.detail;
+    customInput.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  验证
+// ══════════════════════════════════════════════════════
+function validate() {
+  syncPlayer1();
+  if (!state.gender)      { alert('请选择性别'); return false; }
+  if (!state.appearance)  { alert('请填写外貌描述'); return false; }
+  if (!state.personality) { alert('请填写性格描述'); return false; }
+  if (!state.openingId)   { alert('请选择开场'); return false; }
+  const oc = OPENING_CHOICES.find(c => c.id === state.openingId);
+  if (oc && oc.editable && !state.openingCustom) { alert('请填写自定义开局描述'); return false; }
+  if (!state.kungfu)      { alert('请选择初始武学'); return false; }
+  return true;
+}
+
+// ══════════════════════════════════════════════════════
+//  提交：注入变量 + 写世界书 + 填发送框
+// ══════════════════════════════════════════════════════
+async function confirmSetup() {
+  if (!validate()) return;
+
+  const btn = document.getElementById('btn-confirm');
+  btn.disabled = true;
+  btn.innerHTML = `
+    <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;animation:spin 1s linear infinite" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="10"/>
+    </svg>
+    正在踏入…`;
+
+  try {
+    const Mvu = window.parent?.Mvu || window.Mvu;
+    if (!Mvu) throw new Error('MVU未加载');
+
+    let data = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+    if (!data) data = { stat_data: {} };
+    if (!data.stat_data) data.stat_data = {};
+
+    const _ = window.parent?._ || window._;
+
+    const kf = KUNGFU_LIST.find(k => k.id === state.kungfu);
+    const statKey = kf ? kf.stat : '拳掌';
+
+    _.set(data, 'stat_data.玩家.基础信息.性别', state.gender);
+    _.set(data, 'stat_data.$剧情控制', state.openingId);
+
+    STAT_KEYS.forEach(key => {
+      _.set(data, `stat_data.玩家.基本功加点.基本功.${key}`, state.stats[key]);
+    });
+    _.set(data, 'stat_data.玩家.基本功加点.点数', state.pointsLeft);
+
+    _.set(data, 'stat_data.玩家.领悟功法', [state.kungfu]);
+
+    // ── 根据初始武功注入初始武器 ──
+    {
+      const WEAPON_MAP = {
+        '拳掌': '破指套',
+        '棍枪': '破木棍',
+        '剑':   '破铁剑',
+        '刀':   '破铁刀',
+        '暗器': '破飞镖',
+      };
+      const weaponName = WEAPON_MAP[statKey] || '破指套';
+      _.set(data, `stat_data.玩家.物品.主武器类.${weaponName}`, {
+        佩戴要求: { [statKey]: 5 },
+        增幅效果: { 力量: 2, 防御力: 1 },
+      });
+      _.set(data, 'stat_data.玩家.装备.主武器', weaponName);
+      console.log(`[开场界面] 初始武器：${weaponName}（${statKey}>=5，力量+2，防御力+1）`);
+    }
+
+    {
+      const 等级 = 1;
+
+      // 武功增幅
+      const learnedList = [state.kungfu];
+      const kfAttrBonus = { 力量: 0, 速度: 0, 防御力: 0, 内功修为: 0, 身法: 0 };
+      const kfBskBonus  = {};
+      let 武功血量加成 = 0, 武功内力加成 = 0;
+      for (const kfName of learnedList) {
+        const kfEntity = _kungfuLibCache?.[kfName];
+        if (!kfEntity?.基本功和属性增幅) continue;
+        const b = kfEntity.基本功和属性增幅;
+        for (const k of ['力量','速度','防御力','内功修为','身法']) { if (b[k]) kfAttrBonus[k] += b[k]; }
+        for (const k of STAT_KEYS) { if (b[k]) kfBskBonus[k] = (kfBskBonus[k] || 0) + b[k]; }
+        武功血量加成 += (b.血量上限 ?? 0);
+        武功内力加成 += (b.内力上限 ?? 0);
+      }
+
+      // 武功基本功增幅写入
+      for (const k of STAT_KEYS) {
+        if (kfBskBonus[k]) {
+          const p = `stat_data.玩家.基本功加点.基本功.${k}`;
+          _.set(data, p, (_.get(data, p, 0) || 0) + kfBskBonus[k]);
+        }
+      }
+
+      // 装备增幅
+      const equipBonus = { 力量: 0, 速度: 0, 防御力: 0, 内功修为: 0, 身法: 0 };
+      let 装备血量加成 = 0, 装备内力加成 = 0;
+      const weaponData = _.get(data, `stat_data.玩家.物品.主武器类.${_.get(data, 'stat_data.玩家.装备.主武器')}`);
+      if (weaponData?.增幅效果) {
+        const e = weaponData.增幅效果;
+        for (const k of ['力量','速度','防御力','内功修为','身法']) { if (e[k]) equipBonus[k] += e[k]; }
+        装备血量加成 += (e.血量值 ?? 0);
+        装备内力加成 += (e.内力值 ?? 0);
+      }
+
+      // 基本功 → 属性加成（与日常UI公式一致）
+      const BMAP = {
+        拳掌:     { 力量: 0.5, 防御力: 0.2 },
+        棍枪:     { 力量: 0.3, 速度: 0.3 },
+        剑:       { 速度: 0.4, 身法: 0.3 },
+        刀:       { 力量: 0.4, 防御力: 0.3 },
+        暗器:     { 速度: 0.4, 身法: 0.4 },
+        内功底蕴: { 内功修为: 0.8, 防御力: 0.2 },
+      };
+      const attrBonus = { 力量: 0, 速度: 0, 防御力: 0, 内功修为: 0, 身法: 0 };
+      for (const sk of STAT_KEYS) {
+        const sv = (state.stats[sk] || 0) + (kfBskBonus[sk] || 0);
+        const mp = BMAP[sk];
+        if (!mp) continue;
+        for (const at in mp) {
+          attrBonus[at] += Math.floor(sv * mp[at]);
+        }
+      }
+
+      const 力量     = 10 + attrBonus['力量']     + kfAttrBonus['力量']     + equipBonus['力量'];
+      const 速度     = 10 + attrBonus['速度']     + kfAttrBonus['速度']     + equipBonus['速度'];
+      const 防御力   = 10 + attrBonus['防御力']   + kfAttrBonus['防御力']   + equipBonus['防御力'];
+      const 内功修为 = 10 + attrBonus['内功修为'] + kfAttrBonus['内功修为'] + equipBonus['内功修为'];
+      const 身法     = 10 + attrBonus['身法']     + kfAttrBonus['身法']     + equipBonus['身法'];
+
+      _.set(data, 'stat_data.玩家.属性.力量',     力量);
+      _.set(data, 'stat_data.玩家.属性.速度',     速度);
+      _.set(data, 'stat_data.玩家.属性.防御力',   防御力);
+      _.set(data, 'stat_data.玩家.属性.内功修为', 内功修为);
+      _.set(data, 'stat_data.玩家.属性.身法',     身法);
+
+      const 血量上限 = 300 + 等级 * 60 + 力量 * 20 + 武功血量加成 + 装备血量加成;
+      const 内力上限 = 300 + 等级 * 60 + 内功修为 * 20 + 武功内力加成 + 装备内力加成;
+
+      _.set(data, 'stat_data.玩家.核心状态.血量.上限', 血量上限);
+      _.set(data, 'stat_data.玩家.核心状态.血量.当前', 血量上限);
+      _.set(data, 'stat_data.玩家.核心状态.内力.上限', 内力上限);
+      _.set(data, 'stat_data.玩家.核心状态.内力.当前', 内力上限);
+
+      function expToNext(lv) {
+        if (lv <= 30)  return lv * 60;
+        if (lv <= 50)  return lv * 90;
+        if (lv <= 70)  return lv * 150;
+        if (lv <= 99)  return lv * 210;
+        if (lv <= 120) return lv * 450;
+        return lv * 600;
+      }
+
+      _.set(data, 'stat_data.玩家.基础信息.等级', 等级);
+      _.set(data, 'stat_data.玩家.基础信息.经验值', 0);
+      _.set(data, 'stat_data.玩家.基础信息.下一级所需经验', expToNext(等级));
+
+      console.log(`[开场界面] 初始核心状态：血量上限=${血量上限}，内力上限=${内力上限}`);
+    }
+
+    let allKungfuRecord;
+    if (_kungfuLibCache && typeof _kungfuLibCache === 'object' && Object.keys(_kungfuLibCache).length > 5) {
+      allKungfuRecord = Object.fromEntries(
+        Object.values(_kungfuLibCache).map(k => [k.名字, k.类别 || '普通'])
+      );
+      console.log('[开场界面] 武功库来源：内存缓存，共', Object.keys(allKungfuRecord).length, '个');
+    } else {
+      const getAllKungfu = _findGetAllKungfu();
+      if (typeof getAllKungfu === 'function') {
+        const lib = getAllKungfu();
+        _kungfuLibCache = lib;
+        allKungfuRecord = Object.fromEntries(
+          Object.values(lib).map(k => [k.名字, k.类别 || '普通'])
+        );
+        console.log('[开场界面] 武功库来源：WX_GET_ALL_KUNGFU，共', Object.keys(allKungfuRecord).length, '个');
+      } else {
+        try {
+          const priorData = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+          const priorKungfu = priorData?.stat_data?.武功;
+          if (priorKungfu && Object.keys(priorKungfu).length > 5) {
+            allKungfuRecord = priorKungfu;
+            console.log('[开场界面] 武功库来源：MVU预注入，共', Object.keys(allKungfuRecord).length, '个');
+          } else {
+            throw new Error('MVU中武功库不完整');
+          }
+        } catch(mvuErr) {
+          console.warn('[开场界面] 武功库兜底（仅5个初始武功）:', mvuErr.message);
+          allKungfuRecord = Object.fromEntries(KUNGFU_LIST.map(k => [k.id, '普通']));
+        }
+      }
+    }
+    _.set(data, 'stat_data.武功', allKungfuRecord);
+
+    await Mvu.replaceMvuData(data, { type: 'message', message_id: 0 });
+
+    // ── 清空世界书"勿动"条目内容（避免上一次魂穿残留影响新角色）──
+    try {
+      const _p = window.parent;
+      const _getNames = _p.getCharWorldbookNames || window.getCharWorldbookNames;
+      const _getWB    = _p.getWorldbook           || window.getWorldbook;
+      const _repWB    = _p.replaceWorldbook        || window.replaceWorldbook;
+      if (_getNames && _getWB && _repWB) {
+        const _books = _getNames('current');
+        if (_books?.primary) {
+          const _entries = await _getWB(_books.primary);
+          const _target = _entries.find(e => e.name === '勿动');
+          if (_target) {
+            _target.content = '';
+            await _repWB(_books.primary, _entries, { render: 'debounced' });
+          }
+        }
+      }
+    } catch(e) { console.warn('[开场界面] 清空"勿动"跳过:', e.message); }
+
+    fillInput();
+
+    showSuccess();
+
+    await writeWorldbook();
+
+  } catch(e) {
+    console.error('[开场界面] 错误:', e);
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0;" viewBox="0 0 24 24">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+      踏入江湖`;
+    alert('发生错误：' + e.message);
+  }
+}
+
+async function writeWorldbook() {
+  try {
+    const parent = window.parent;
+    if (!parent) return;
+
+    const getNames     = parent.getCharWorldbookNames  || window.getCharWorldbookNames;
+    const createEntries = parent.createWorldbookEntries || window.createWorldbookEntries;
+    if (!getNames || !createEntries) {
+      console.warn('[开场界面] createWorldbookEntries API 不可用，跳过');
+      return;
+    }
+
+    const books = getNames('current');
+    if (!books?.primary) {
+      console.warn('[开场界面] 角色卡未绑定主世界书，跳过');
+      return;
+    }
+
+    const entryName = `${state.gender}·${state.kungfu}·自定义`;
+    const content   = `关于{{user}}\n外貌：${state.appearance}\n性格：${state.personality}`;
+
+    await createEntries(books.primary, [{
+      name:     entryName,
+      strategy: { type: 'constant', keys: [] },
+      position: { type: 'before_character_definition', order: 100 },
+      content:  content,
+      enabled:  true,
+      probability: 100,
+      recursion: { prevent_incoming: true, prevent_outgoing: true, delay_until: null },
+      effect:   { sticky: null, cooldown: null, delay: null },
+    }]);
+
+    showWorldbookNotice(entryName);
+
+  } catch(e) {
+    console.warn('[开场界面] 世界书写入跳过:', e.message);
+  }
+}
+
+function showWorldbookNotice(entryName) {
+  const overlay = document.getElementById('wb-notice-overlay');
+  const text    = document.getElementById('wb-notice-text');
+  if (text) text.textContent =
+    `已创建世界书条目「${entryName}」（蓝灯·始终激活）。` +
+    `该条目不会自动删除——若需重新开始游玩，请先在世界书中手动删除该条目，再新建对话。`;
+  if (overlay) {
+    setTimeout(() => { overlay.style.display = 'flex'; }, 1200);
+  }
+}
+
+document.getElementById('wb-notice-overlay').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+
+function fillInput() {
+  const docs = [];
+  try { if (window.top?.document)    docs.push(window.top.document);    } catch(e){}
+  try { if (window.parent?.document) docs.push(window.parent.document); } catch(e){}
+  docs.push(document);
+
+  let textarea = null;
+  for (const doc of docs) {
+    try {
+      textarea = doc.getElementById('send_textarea');
+      if (textarea) break;
+    } catch(e) {}
+  }
+
+  const oc = OPENING_CHOICES.find(c => c.id === state.openingId);
+  const msg = oc && oc.editable
+    ? `根据开场设定：${state.openingCustom}，开场吧。`
+    : `根据开场设定，开始叙述故事吧。`;
+
+  if (textarea) {
+    textarea.value = msg;
+    textarea.dispatchEvent(new Event('input',  { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    textarea.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+    textarea.focus();
+  }
+}
+
+function showSuccess() {
+  const overlay = document.getElementById('success-overlay');
+  overlay.classList.add('show');
+}
+
+// ══════════════════════════════════════════════════════
+//  spin 关键帧（加载动画）
+// ══════════════════════════════════════════════════════
+const spinStyle = document.createElement('style');
+spinStyle.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+document.head.appendChild(spinStyle);
+
+// ══════════════════════════════════════════════════════
+//  初始化
+// ══════════════════════════════════════════════════════
+function init() {
+  buildProgress();
+  buildPages();
+  updateProgress();
+}
+
+init();
+</script>
+</body>
+</html>
+```
