@@ -2176,10 +2176,8 @@ let G = {
   atbProg: {}, curKey: null, pending: null, tgtMode: null,
   defending: new Set(), jiazhuMap: {},
   statuses: {}, cds: {},
-  roundCount: 0, result: null, expGained: 0,
+  roundCount: 0, result: null, profGained: 0,
   aiMsgId: null, battleLog: [], itemsUsed: {},
-  charExp: {}, charExpNext: {}, charCurExp: {}, charCurLv: {},
-  charBskPts: {},
 };
 let _speedMul = 1;
 let _autoMode = false;
@@ -2239,22 +2237,29 @@ function parseStatusList(list){
   }).filter(Boolean);
 }
 
-function expToNext(lv){
-  if(lv<=30)  return lv*60;
-  if(lv<=50)  return lv*90;
-  if(lv<=70)  return lv*150;
-  if(lv<=99)  return lv*210;
-  if(lv<=120) return lv*450;
-  return lv*600;
+const REALM_TABLE=[
+  {name:'初学乍练',min:0,eqLv:5},{name:'初窥门径',min:50,eqLv:15},
+  {name:'略有小成',min:100,eqLv:25},{name:'登堂入室',min:200,eqLv:35},
+  {name:'融会贯通',min:350,eqLv:50},{name:'出神入化',min:500,eqLv:65},
+  {name:'返璞归真',min:700,eqLv:80},{name:'天人合一',min:1000,eqLv:90},
+  {name:'武道神话',min:1500,eqLv:100},{name:'陆地神仙',min:2000,eqLv:120},
+];
+function realmToEqLv(realm){
+  for(let i=REALM_TABLE.length-1;i>=0;i--) if(REALM_TABLE[i].name===realm) return REALM_TABLE[i].eqLv;
+  return 5;
 }
-function lvTitle(lv){
-  if(lv>=100)return'天书守护';if(lv>=95)return'陆地神仙';if(lv>=90)return'天人合一';
-  if(lv>=85)return'武道神话';if(lv>=80)return'武学圣人';if(lv>=75)return'一代宗师';
-  if(lv>=70)return'武林至尊';if(lv>=65)return'绝世高手';if(lv>=60)return'盖世豪侠';
-  if(lv>=55)return'江湖泰斗';if(lv>=50)return'武林高手';if(lv>=45)return'名震江湖';
-  if(lv>=40)return'一方豪杰';if(lv>=35)return'风云人物';if(lv>=30)return'江湖俊杰';
-  if(lv>=25)return'侠义之士';if(lv>=20)return'后起之秀';if(lv>=15)return'声名鹊起';
-  if(lv>=10)return'初出茅庐';return'无名小卒';
+function scoreToRealm(score){
+  let r='初学乍练';
+  for(const t of REALM_TABLE) if(score>=t.min) r=t.name;
+  return r;
+}
+function calcCharPowerScore(attr,bsk){
+  const _AK=['力量','速度','防御力','内功修为','身法'];
+  const _BK=['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
+  let aSum=0,bSum=0;
+  for(const k of _AK) aSum+=(attr[k]||0);
+  for(const k of _BK) bSum+=(bsk[k]||0);
+  return aSum+bSum*2;
 }
 
 function toast(msg,ms=2400){
@@ -2362,7 +2367,7 @@ async function fixEnemyStats(mvuData){
 
   // 通用内功池（无门派色彩，用于自动补全）
   const GENERIC_NEIGONG=['吐纳法','养气诀','固元功'];
-  // 通用武功池（按等级要求过滤后随机补）
+  // 通用武功池
   const GENERIC_WUGONG=['人民铁拳','农夫棍法','农夫剑法','农夫刀法','弹弓射击',
                         '旋风扫叶腿','铜锤手','鹰爪擒拿手',
                         '虎形拳','碎骨掌','拦路棍','长枪突刺',
@@ -2370,7 +2375,8 @@ async function fixEnemyStats(mvuData){
                         '硬气功','铁布衫'];
 
   for(const[key,e]of Object.entries(enemies)){
-    const lv=e.基础信息?.等级||1;
+    const realm=e.基础信息?.境界||'初学乍练';
+    const lv=realmToEqLv(realm);
     let learned=Array.isArray(e.领悟功法)?[...e.领悟功法]:[];
 
     // ── 步骤0a：内功补全（lv>10 且无合法内功）──
@@ -2379,12 +2385,11 @@ async function fixEnemyStats(mvuData){
         const kf=KUNGFU_LIB[n]; return kf&&kf.类别==='内功';
       });
       if(!hasValidNeigong){
-        // 按等级选合适的内功：lv>=8 可用固元功，否则养气诀/吐纳法
         const pool=GENERIC_NEIGONG.filter(n=>{
-          const kf=KUNGFU_LIB[n]; return kf&&kf.等级要求<=lv;
+          const kf=KUNGFU_LIB[n]; return !!kf;
         });
         if(pool.length){
-          const pick=pool[pool.length-1]; // 取等级最高的
+          const pick=pool[pool.length-1];
           learned.push(pick);
           e.领悟功法=learned;
           changed=true;
@@ -2403,11 +2408,12 @@ async function fixEnemyStats(mvuData){
         const BSKMAP={拳掌:'拳掌',棍枪:'棍枪',剑:'剑',刀:'刀',暗器:'暗器',内功底蕴:'内功底蕴'};
         let topBsk='拳掌', topVal=0;
         for(const k of BKEYS){ const v=bskNow[k]||0; if(v>topVal){topVal=v;topBsk=k;} }
-        // 候选池：通用武功 + 等级要求<=lv + 不重复
-        // 优先选基本功要求与topBsk匹配的，其次选无特定要求的
         const allCands=GENERIC_WUGONG.filter(n=>{
           const kf=KUNGFU_LIB[n];
-          return kf&&kf.等级要求<=lv&&!learned.includes(n);
+          if(!kf||learned.includes(n))return false;
+          const req=kf.基本功要求||{};
+          for(const bk of BKEYS) if((req[bk]||0)>(bskNow[bk]||0)+10) return false;
+          return true;
         });
         const preferred=allCands.filter(n=>{
           const req=KUNGFU_LIB[n].基本功要求||{};
@@ -2435,7 +2441,7 @@ async function fixEnemyStats(mvuData){
       kfMpBonus+=(b.内力上限||0);
     }
 
-    // ── 步骤2：基本功补全（目标总值=等级×5）──
+    // ── 步骤2：基本功补全（目标总值=eqLv×5）──
     const bsk=e.基本功||{};
     let targetTotal=lv*5;
     if(lv>=60) targetTotal+=250;
@@ -2489,12 +2495,10 @@ async function fixEnemyStats(mvuData){
       e.基本功=bsk;
     }
 
-    // ── 步骤3：属性补全（等级成长+基本功贡献，逐项取max）──
+    // ── 步骤3：属性补全（境界等效成长+基本功贡献，逐项取max）──
     const attr=e.属性||{};
     const formulaAttr={力量:0,速度:0,防御力:0,内功修为:0,身法:0};
-    // 等级成长
     for(const a of AKEYS) formulaAttr[a]+=F(lv*LV_GROWTH[a]);
-    // 基本功贡献（差值法从0开始）
     for(const k of BKEYS){
       const val=bsk[k]||0; if(!val)continue;
       const map=BSKILL_ATTR_MAP[k]; if(!map)continue;
@@ -2513,8 +2517,9 @@ async function fixEnemyStats(mvuData){
     const oldHpMax=hp.上限||0, oldMpMax=mp.上限||0;
     const oldHpCur=hp.当前??oldHpMax, oldMpCur=mp.当前??oldMpMax;
 
-    const fHpMax=300+lv*60+(attr.力量||0)*20+kfHpBonus;
-    const fMpMax=300+lv*60+(attr.内功修为||0)*20+kfMpBonus;
+    let bskSum=0; for(const k of BKEYS) bskSum+=(bsk[k]||0);
+    const fHpMax=300+bskSum*8+(attr.力量||0)*20+kfHpBonus;
+    const fMpMax=300+bskSum*8+(attr.内功修为||0)*20+kfMpBonus;
     const newHpMax=Math.max(fHpMax,oldHpMax);
     const newMpMax=Math.max(fMpMax,oldMpMax);
 
@@ -2555,7 +2560,8 @@ async function fixAllyStats(mvuData){
   let changed=false;
 
   for(const[key,a]of Object.entries(allies)){
-    const lv=a.基础信息?.等级||1;
+    const realm=a.基础信息?.境界||'初学乍练';
+    const lv=realmToEqLv(realm);
     const learned=Array.isArray(a.领悟功法)?a.领悟功法:[];
 
     // ── 步骤1：汇总武功增幅 ──
@@ -2567,8 +2573,8 @@ async function fixAllyStats(mvuData){
       kfMpBonus+=(b.内力上限||0);
     }
 
-    // ── 步骤2：基本功补全（目标总值=等级×5）──
-    const bsk=a.基本功加点?.基本功||{};
+    // ── 步骤2：基本功补全（目标总值=eqLv×5）──
+    const bsk=a.基本功||{};
     const targetTotal=lv*5;
     let curTotal=0;
     for(const k of BKEYS) curTotal+=(bsk[k]||0);
@@ -2609,11 +2615,10 @@ async function fixAllyStats(mvuData){
           bsk[BKEYS[0]]+=(targetTotal-per*6);
         }
       }
-      if(!a.基本功加点) a.基本功加点={};
-      a.基本功加点.基本功=bsk;
+      a.基本功=bsk;
     }
 
-    // ── 步骤3：属性补全（等级成长+基本功贡献+武学属性增幅，逐项取max）──
+    // ── 步骤3：属性补全（境界等效成长+基本功贡献+武学属性增幅，逐项取max）──
     const attr=a.属性||{};
     const formulaAttr={力量:0,速度:0,防御力:0,内功修为:0,身法:0};
     for(const ak of AKEYS) formulaAttr[ak]+=F(lv*LV_GROWTH[ak]);
@@ -2641,8 +2646,9 @@ async function fixAllyStats(mvuData){
     const oldHpMax=hp.上限||0, oldMpMax=mp.上限||0;
     const oldHpCur=hp.当前??oldHpMax, oldMpCur=mp.当前??oldMpMax;
 
-    const fHpMax=300+lv*60+(attr.力量||0)*20+kfHpBonus;
-    const fMpMax=300+lv*60+(attr.内功修为||0)*20+kfMpBonus;
+    let bskSum=0; for(const k of BKEYS) bskSum+=(bsk[k]||0);
+    const fHpMax=300+bskSum*8+(attr.力量||0)*20+kfHpBonus;
+    const fMpMax=300+bskSum*8+(attr.内功修为||0)*20+kfMpBonus;
     const newHpMax=Math.max(fHpMax,oldHpMax);
     const newMpMax=Math.max(fMpMax,oldMpMax);
 
@@ -2720,8 +2726,8 @@ async function init(){
     await fixAllyStats(mvu);
   }
   G.actors={};G.pKeys=[];G.eKeys=[];G.statuses={};G.cds={};G.atbProg={};G.copiedKf={};
-  G.defending=new Set();G.jiazhuMap={};G.roundCount=0;G.result=null;G.settleChoice=null;G.expGained=0;
-  G.battleLog=[];G.itemsUsed={};G.charExp={};G.charExpNext={};G.charCurExp={};G.charCurLv={};G.charBskPts={};
+  G.defending=new Set();G.jiazhuMap={};G.roundCount=0;G.result=null;G.settleChoice=null;G.profGained=0;
+  G.battleLog=[];G.itemsUsed={};
 
   if(useData.玩家){
     const k='player';
@@ -2729,10 +2735,6 @@ async function init(){
     G.pKeys.push(k);
     G.statuses[k]=parseStatusList(useData.玩家.核心状态?.状态列表);
     G.cds[k]={};
-    const _pExp=useData.玩家.基础信息?.经验值||0;
-    const _pLv=useData.玩家.基础信息?.等级||1;
-    G.charExp[k]=_pExp; G.charExpNext[k]=expToNext(_pLv);
-    G.charCurExp[k]=_pExp; G.charCurLv[k]=_pLv;
   }
   for(const[name,charData]of Object.entries(useData.我方队友||{})){
     if(charData.是否参战===false) continue;
@@ -2740,10 +2742,6 @@ async function init(){
     G.pKeys.push(name);
     G.statuses[name]=parseStatusList(charData.核心状态?.状态列表);
     G.cds[name]={};
-    const _aExp=charData.基础信息?.经验值||0;
-    const _aLv=charData.基础信息?.等级||1;
-    G.charExp[name]=_aExp; G.charExpNext[name]=expToNext(_aLv);
-    G.charCurExp[name]=_aExp; G.charCurLv[name]=_aLv;
   }
   for(const[key,charData]of Object.entries(useData.敌人||{})){
     G.actors[key]=buildActor(key,'enemy',charData);
@@ -2760,10 +2758,6 @@ async function init(){
           delete G.actors[k];
           delete G.statuses[k];
           delete G.cds[k];
-          delete G.charExp[k];
-          delete G.charExpNext[k];
-          delete G.charCurExp[k];
-          delete G.charCurLv[k];
         }
       }
       G.pKeys=G.pKeys.filter(k=>k==='player');
@@ -2812,11 +2806,11 @@ async function init(){
   G.phase='atb';
   atbLoop();
   log(`战场就位。敌方：${G.eKeys.map(k=>G.actors[k]?.name).join('、')}（共${G.eKeys.length}人）`,'l-sys');
-  // ── 越级压制 ──
-  const _maxPLv=Math.max(...G.pKeys.map(k=>G.charCurLv[k]||gA(k)?.level||1));
-  const _maxELv=Math.max(...G.eKeys.map(k=>gA(k)?.level||1));
-  const _lvGap=_maxELv-_maxPLv;
-  G._overLvTier=_lvGap>=20?2:_lvGap>=10?1:0;
+  // ── 实力压制 ──
+  const _maxPPow=Math.max(...G.pKeys.map(k=>gA(k)?.powerScore||0));
+  const _maxEPow=Math.max(...G.eKeys.map(k=>gA(k)?.powerScore||0));
+  const _powGap=_maxEPow-_maxPPow;
+  G._overLvTier=_powGap>=400?2:_powGap>=200?1:0;
   if(G._overLvTier){
     const spdMul=G._overLvTier===2?1.7:1.5;
     // 写入MVU
@@ -2846,8 +2840,8 @@ async function init(){
         ac._overLvSpdDone=true;
       }
     }
-    if(G._overLvTier===1)log('等级差距过大，敌人气场极强，我方受到压制。','l-sys');
-    if(G._overLvTier===2)log('等级差距极大，敌人气场如山岳一般，我方被压的喘不过气。','l-sys');
+    if(G._overLvTier===1)log('实力差距过大，敌人气场极强，我方受到压制。','l-sys');
+    if(G._overLvTier===2)log('实力差距极大，敌人气场如山岳一般，我方被压的喘不过气。','l-sys');
   }
 }
 
@@ -2871,20 +2865,24 @@ function buildActor(key,type,data){
   const mainKf=data.主运内功||'';
   const kfList=Array.isArray(data.领悟功法)?data.领悟功法:Object.keys(data.领悟功法||data.武功||{});
   if(type==='player'&&_customKfNames.length) for(const n of _customKfNames){if(!kfList.includes(n))kfList.push(n);}
-  const lv=info.等级||1;
-  const hpBase=300+lv*60+(attr.力量||0)*20;
-  const mpBase=300+lv*60+(attr.内功修为||0)*20;
+  const bskObj=data.基本功||{};
+  const _BK=['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
+  let _bSum=0; for(const k of _BK) _bSum+=(bskObj[k]||0);
+  const hpBase=300+_bSum*8+(attr.力量||0)*20;
+  const mpBase=300+_bSum*8+(attr.内功修为||0)*20;
   const hpMax=core.血量?.上限||hpBase;
   const mpMax=core.内力?.上限||mpBase;
   const weaponName=(data.装备||{}).主武器||'';
+  const _pScore=calcCharPowerScore(attr,bskObj);
   return {
     key, type, name:info.姓名||key,
     title:info.称号||'',
-    level:lv,
+    realm:info.境界||scoreToRealm(_pScore),
+    powerScore:_pScore,
     hp:{cur:Math.min(core.血量?.当前??hpMax,hpMax),max:hpMax},
     mp:{cur:Math.min(core.内力?.当前??mpMax,mpMax),max:mpMax},
     attr:{...attr}, equipBonus:eq,
-    bskill:data.基本功加点?.基本功||data.基本功||{},
+    bskill:bskObj,
     kungfu:kfList, mainKf, weaponName,
     items:data.物品||{},
     alive:true,
@@ -3622,7 +3620,7 @@ function doKungfu(atkKey,kfName,tgtKeys){
     if((kf.冷却?.[0]||0)>0){ G.cds[atkKey]=G.cds[atkKey]||{}; G.cds[atkKey][kfName]=kf.冷却[0]+1; }
     const tgtKey=tgtKeys[0]; const tgt=gA(tgtKey);
     if(!tgt||!tgt.alive){log(`${atk.name} 施展小无相功，但目标已倒下`,'l-miss');endTurn(atkKey);return;}
-    const lvLimit=(atk.level||1)+5;
+    const atkPow=atk.powerScore||0;
     const allKf=(tgt.kungfu||[]).filter(n=>{
       const k=KUNGFU_LIB[n]; if(!k)return false;
       if(k.类别==='内功'&&(k.影响状态?.影响回合??-1)===-1)return false;
@@ -3631,9 +3629,9 @@ function doKungfu(atkKey,kfName,tgtKeys){
     if(!allKf.length){log(`${atk.name} 施展小无相功，但无法复制${tgt.name}的武功`,'l-miss');endTurn(atkKey);return;}
     const isPlayer=atkKey==='player';
     if(isPlayer){
-      showCopyKfPanel(atkKey,tgtKey,allKf,lvLimit);
+      showCopyKfPanel(atkKey,tgtKey,allKf,atkPow);
     } else {
-      const copyable=allKf.filter(n=>(KUNGFU_LIB[n]?.等级要求||1)<=lvLimit);
+      const copyable=allKf.filter(n=>_canCopyKf(n,atkPow));
       if(!copyable.length){log(`${atk.name} 施展小无相功，但无法复制${tgt.name}的武功`,'l-miss');endTurn(atkKey);return;}
       const pick=copyable[Math.floor(Math.random()*copyable.length)];
       finishCopyKf(atkKey,tgtKey,pick);
@@ -3654,13 +3652,19 @@ function doKungfu(atkKey,kfName,tgtKeys){
 }
 
 // ── 小无相功：武功选择面板 ──
-function showCopyKfPanel(atkKey,tgtKey,allKf,lvLimit){
+function _canCopyKf(kfName,atkPow){
+  const kf=KUNGFU_LIB[kfName]; if(!kf)return false;
+  const req=kf.基本功要求||{};
+  let reqSum=0; for(const v of Object.values(req)) reqSum+=v;
+  return atkPow>=reqSum*4;
+}
+function showCopyKfPanel(atkKey,tgtKey,allKf,atkPow){
   const panel=q('p-kf'); panel.innerHTML=''; panel.classList.add('open');
   const tgt=gA(tgtKey);
   panel.insertAdjacentHTML('beforeend',`<div style="padding:6px 8px;color:var(--gold-bright);font-size:12px;border-bottom:1px solid rgba(255,255,255,0.1)">小无相功 — 选择复制${tgt?.name||''}的武功</div>`);
   for(const kfName of allKf){
     const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
-    const lvOk=(kf.等级要求||1)<=lvLimit;
+    const lvOk=_canCopyKf(kfName,atkPow);
     const rng=(kf.作用范围||'').replace('敌方','敌').replace('我方','友').replace('群体','群').replace('仅我','己');
     const row=document.createElement('div');
     row.className='kf-row'+(lvOk?'':' kf-off');
@@ -3676,7 +3680,7 @@ function showCopyKfPanel(atkKey,tgtKey,allKf,lvLimit){
       <div class="kf-mp">内力<br>${kf.消耗内力}</div>
       <div class="kf-cd rdy">CD${kf.冷却?kf.冷却[0]:0}</div>
       <div class="kf-rng">${rng}</div>
-      ${!lvOk?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">等级不足(需${kf.等级要求}级)</div>`:''}`;
+      ${!lvOk?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">实力不足</div>`:''}`;
     if(lvOk)row.addEventListener('click',()=>{ clearAllPanels(); finishCopyKf(atkKey,tgtKey,kfName); });
     panel.appendChild(row);
   }
@@ -3989,7 +3993,7 @@ function buildJzPanel(){
     const c=gA(k); if(!c)continue;
     const row=document.createElement('div');
     row.className='jz-row';
-    row.innerHTML=`<span>${c.name}</span><span style="font-size:11px;color:var(--parchment2)">Lv${c.level}</span>`;
+    row.innerHTML=`<span>${c.name}</span><span style="font-size:11px;color:var(--parchment2)">${c.realm||'初学乍练'}</span>`;
     row.addEventListener('click',()=>doJiazhu(G.curKey,k));
     panel.appendChild(row);
   }
@@ -4075,12 +4079,11 @@ function doItem(tgtKey,name,item){
 function doFlee(){
   const key=G.curKey,c=gA(key); if(!c){endTurn(key);return;}
   const enemies=aliveE(); if(!enemies.length){endTurn(key);return;}
-  // 取等级最高的敌人
-  let el=enemies[0],maxLv=gA(el)?.level||1;
-  for(const ek of enemies){const lv=gA(ek)?.level||1;if(lv>maxLv){maxLv=lv;el=ek;}}
-  const lvD=Math.max(0,maxLv-(c.level||1));
+  let el=enemies[0],maxPow=gA(el)?.powerScore||0;
+  for(const ek of enemies){const pw=gA(ek)?.powerScore||0;if(pw>maxPow){maxPow=pw;el=ek;}}
+  const powD=Math.max(0,maxPow-(c.powerScore||0));
   const spdD=Math.max(0,(getAttr(key,'速度')-getAttr(el,'速度'))/200);
-  const rate=clamp(0.9-lvD*0.05+spdD,0.1,1.0);
+  const rate=clamp(0.9-powD*0.002+spdD,0.1,1.0);
   if(Math.random()<rate){log(`${c.name} 施展轻功，成功逃脱！`,'l-flee');endBattle('flee');}
   else{log(`${c.name} 逃跑被截住！`,'l-miss');endTurn(key);}
 }
@@ -4302,9 +4305,9 @@ function dealDmg(key,dmg){
     G.battleLog.push({t:'KO',v:c.name,side:c.type==='enemy'?'E':'P'});
     log(`${c.name} 倒下了！`,'l-sys'); updateCard(key);
     if(c.type==='enemy'){
-      grantKillExp(key);
+      grantKillProf(key);
       const _isXinmo=/^\[心魔\]/.test(c.name);
-      const gold=Math.floor(c.level*20*rand(0.5,2))*(_isXinmo?3:1);
+      const gold=Math.floor((realmToEqLv(c.realm||'初学乍练'))*20*rand(0.5,2))*(_isXinmo?3:1);
       G.goldGained=(G.goldGained||0)+gold;
       if(gold>0) log(`掉落 ${gold} 金钱`,'l-buff');
     }
@@ -4323,86 +4326,22 @@ function calcKfMaxBonus(key){
   return{hp,mp};
 }
 
-function grantKillExp(enemyKey){
+function grantKillProf(enemyKey){
   const e=gA(enemyKey); if(!e)return;
   const alive=aliveP(); if(!alive.length)return;
-  const pLv=G.charCurLv[G.pKeys[0]]||gA(G.pKeys[0])?.level||1;
-  const d=e.level-pLv;
-  const m=d>=10?1.5:d>=5?1.2:d<=-10?0.4:d<=-5?0.7:1;
+  const pPow=gA(G.pKeys[0])?.powerScore||0;
+  const ePow=e.powerScore||0;
+  const d=ePow-pPow;
+  const m=d>=400?3:d>=200?2:d<=-400?0.5:d<=-200?0.8:1;
   const boss=/boss/i.test(e.name)||/boss/i.test(e.title||'');
   const elite=/精英/.test(e.name);
-  const total=Math.floor(e.level*30*m*(boss?3:elite?1.5:1));
-  const _rawPer=Math.ceil(Math.floor(total/alive.length)*rand(0.95,1.2));
-  const _isXinmoExp=/^\[心魔\]/.test(e.name);
-  const per=_isXinmoExp?_rawPer*3:_rawPer;
-  if(per<=0)return;
-  G.expGained=(G.expGained||0)+per*alive.length;
-  log(`击败 ${e.name}，获得 ${per} 经验${_isXinmoExp?' (心魔3倍)':''}`,'l-sys');
+  const baseProf=Math.max(1,Math.floor(5*m*(boss?3:elite?1.5:1)));
+  const _isXinmo=/^\[心魔\]/.test(e.name);
+  const profAmt=_isXinmo?baseProf*2:baseProf;
+  G.profGained=(G.profGained||0)+profAmt;
+  log(`击败 ${e.name}，装备功法熟练度+${profAmt}${_isXinmo?' (心魔加倍)':''}`,'l-sys');
   for(const k of alive){
-    floatDmg(q(`card-${k}`),`经验+${per}`,'var(--gold)','13px');
-    let curExp=(G.charCurExp[k]||0)+per;
-    let curLv=G.charCurLv[k]||gA(k)?.level||1;
-    let leveled=0;
-    while(curExp>=expToNext(curLv)){
-      curExp-=expToNext(curLv);
-      curLv++; leveled++;
-    }
-    G.charCurExp[k]=curExp;
-    G.charCurLv[k]=curLv;
-    if(leveled>0){
-      const oldLv=curLv-leveled;
-      log(`${gA(k)?.name} 升级！Lv${oldLv} → Lv${curLv}`,'l-buff');
-      G.battleLog.push({t:'LVUP',v:gA(k)?.name,lv:curLv});
-      // 基本功点数：每级+5
-      G.charBskPts[k]=(G.charBskPts[k]||0)+leveled*5;
-      // 属性成长
-      const ac=gA(k); if(!ac)continue;
-      const oldHpMax=ac.hp.max, oldMpMax=ac.mp.max;
-      let attrDelta={};
-      const growFn=window.parent?.WX_LEVEL_ATTR_GROWTH;
-      if(typeof growFn==='function'){
-        attrDelta=growFn(oldLv,curLv);
-        for(const[attr,d]of Object.entries(attrDelta)){
-          ac.attr[attr]=(ac.attr[attr]||0)+d;
-        }
-      }
-      // 重算上限；升级回满血
-      // 杀死最后一个敌人触发的升级：记录升级前血量供战报使用
-      const _isFinalKill=aliveE().length===0;
-      if(_isFinalKill){
-        if(!G.hpBeforeLvup)G.hpBeforeLvup={};
-        if(!G.hpBeforeLvup[k]) G.hpBeforeLvup[k]={cur:ac.hp.cur,max:ac.hp.max};
-      }
-      const attr=ac.attr||{};
-      const bonus=calcKfMaxBonus(k);
-      ac.hp.max=300+curLv*60+(attr.力量||0)*20+bonus.hp;
-      ac.mp.max=300+curLv*60+(attr.内功修为||0)*20+bonus.mp;
-      ac.hp.cur=ac.hp.max;
-      ac.mp.cur=ac.mp.max;
-      ac.level=curLv;
-      updateCard(k);
-      // 记录升级详情供结算弹窗展示（多次升级时累加而非覆盖）
-      if(!G.lvupDetails)G.lvupDetails={};
-      const _prev=G.lvupDetails[k];
-      if(_prev){
-        const _md={};
-        for(const[a,d]of Object.entries(_prev.attrDelta||{})) _md[a]=(_md[a]||0)+d;
-        for(const[a,d]of Object.entries(attrDelta||{})) _md[a]=(_md[a]||0)+d;
-        G.lvupDetails[k]={
-          name:ac.name, oldLv:_prev.oldLv, newLv:curLv,
-          oldHpMax:_prev.oldHpMax, newHpMax:ac.hp.max,
-          oldMpMax:_prev.oldMpMax, newMpMax:ac.mp.max,
-          attrDelta:_md, bskPts:_prev.bskPts+leveled*5
-        };
-      }else{
-        G.lvupDetails[k]={
-          name:ac.name, oldLv, newLv:curLv,
-          oldHpMax, newHpMax:ac.hp.max,
-          oldMpMax, newMpMax:ac.mp.max,
-          attrDelta, bskPts:leveled*5
-        };
-      }
-    }
+    floatDmg(q(`card-${k}`),`熟练度+${profAmt}`,'var(--gold)','13px');
   }
 }
 
@@ -4515,22 +4454,10 @@ function pickSettle(el,choice){
 }
 
 // ── 升级详情块 ──────────────────────────────────────────
-function _buildLvupBlock(info){
-  const d=info.attrDelta||{};
-  const attrNames=['力量','速度','防御力','内功修为','身法'];
-  const attrTags=attrNames.filter(n=>d[n]).map(n=>`<span style="display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:3px;background:hsla(42,58%,55%,0.08);border:1px solid hsla(42,58%,55%,0.15)"><span style="color:var(--parchment2)">${n}</span><span style="color:hsl(158,50%,55%)">+${d[n]}</span></span>`).join(' ');
-  const hpUp=info.newHpMax-info.oldHpMax;
-  const mpUp=info.newMpMax-info.oldMpMax;
+function _buildProfBlock(profAmt){
+  if(!profAmt)return '';
   return `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed hsla(42,58%,55%,0.15)">
-    <div style="font-size:9px;color:var(--gold);letter-spacing:1px;margin-bottom:3px">Lv${info.oldLv} → Lv${info.newLv}</div>
-    <div style="display:flex;gap:10px;font-size:10px;margin-bottom:3px">
-      <span><span style="color:var(--parchment2)">血量上限 </span><span style="color:hsl(158,50%,55%);font-weight:600">${info.oldHpMax} → ${info.newHpMax}</span><span style="color:hsl(158,50%,55%)"> (+${hpUp})</span></span>
-    </div>
-    <div style="display:flex;gap:10px;font-size:10px;margin-bottom:3px">
-      <span><span style="color:var(--parchment2)">内力上限 </span><span style="color:var(--azure);font-weight:600">${info.oldMpMax} → ${info.newMpMax}</span><span style="color:var(--azure)"> (+${mpUp})</span></span>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:3px;font-size:10px;margin-bottom:2px">${attrTags}</div>
-    <div style="font-size:10px;margin-top:2px"><span style="color:var(--parchment2)">基本功点数 </span><span style="color:var(--gold);font-weight:600">+${info.bskPts}</span></div>
+    <div style="font-size:10px"><span style="color:var(--parchment2)">装备功法熟练度 </span><span style="color:var(--gold);font-weight:600">+${profAmt}</span></div>
   </div>`;
 }
 
@@ -4546,35 +4473,29 @@ function buildModalSummary(result){
     const hp=c.hp, mp=c.mp;
     const hpColor=!c.alive?'var(--crimson)':hp.cur/hp.max>=0.5?'hsl(158,50%,55%)':hp.cur/hp.max>=0.25?'var(--gold)':'var(--crimson)';
     const statusTag=!c.alive?'<span style="color:var(--crimson);font-size:9px;margin-left:3px">【阵亡】</span>':'';
-    const expCur=G.charCurExp[k]??'—';
-    const expNext=expToNext(G.charCurLv[k]||1);
-    const curLvDisplay=G.charCurLv[k]||c.level;
     const itemStr=k==='player'&&Object.keys(G.itemsUsed).length>0
       ?`<br><span style="color:var(--parchment2)">用品：</span>${Object.entries(G.itemsUsed).map(([n,cnt])=>`${n}×${cnt}`).join(' / ')}`
       :'';
-    const lvInfo=G.lvupDetails?.[k];
-    const lvupHtml=lvInfo?_buildLvupBlock(lvInfo):'';
-    lines.push(`<div style="border:1px solid ${lvInfo?'var(--gold-dim)':'var(--border)'};border-radius:6px;padding:6px 8px;margin-bottom:5px;background:hsla(24,14%,11%,0.4)">
+    const profHtml=(k==='player'&&G.profGained>0)?_buildProfBlock(G.profGained):'';
+    lines.push(`<div style="border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-bottom:5px;background:hsla(24,14%,11%,0.4)">
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
         <span style="font-size:13px;font-weight:700;color:var(--parchment)">${c.name}</span>
-        <span style="font-size:10px;color:var(--gold-dim)">Lv${curLvDisplay}</span>
-        ${statusTag}${lvInfo?'<span style="color:var(--gold-bright);font-size:9px;font-weight:700;margin-left:auto;letter-spacing:1px">▲ 升级</span>':''}
+        <span style="font-size:10px;color:var(--gold-dim)">${c.realm||'初学乍练'}</span>
+        ${statusTag}
       </div>
       <div style="font-size:11px;line-height:1.8;color:var(--parchment2)">
         <span style="color:var(--parchment2)">气血 </span><span style="color:${hpColor};font-weight:600">${hp.cur}</span><span style="color:var(--parchment2);opacity:.6"> / ${hp.max}</span>
         &nbsp;&nbsp;
         <span style="color:var(--parchment2)">内力 </span><span style="color:var(--azure);font-weight:600">${mp.cur}</span><span style="color:var(--parchment2);opacity:.6"> / ${mp.max}</span>
-        <br>
-        <span style="color:var(--parchment2)">经验 </span><span style="color:var(--gold);font-weight:600">${expCur}</span><span style="color:var(--parchment2);opacity:.6"> / 升级需 ${expNext}</span>
         ${itemStr}
-      </div>${lvupHtml}
+      </div>${profHtml}
     </div>`);
   }
 
   if(result==='win'){
     lines.push(`<div style="font-size:10px;color:var(--parchment2);margin-top:2px;margin-bottom:3px;letter-spacing:2px">— 战 果 —</div>`);
     const enemyNames=G.eKeys.map(k=>gA(k)?.name).filter(Boolean).join('、');
-    lines.push(`<div style="font-size:11px;line-height:1.8;color:var(--parchment)">击败 ${enemyNames}（共${G.eKeys.length}人）<br><span style="color:hsl(158,50%,55%);font-weight:700">经验 +${G.expGained}</span>&nbsp;&nbsp;<span style="color:var(--gold);font-weight:700">金钱 +${G.goldGained||0}</span></div>`);
+    lines.push(`<div style="font-size:11px;line-height:1.8;color:var(--parchment)">击败 ${enemyNames}（共${G.eKeys.length}人）<br><span style="color:hsl(158,50%,55%);font-weight:700">熟练度 +${G.profGained}</span>&nbsp;&nbsp;<span style="color:var(--gold);font-weight:700">金钱 +${G.goldGained||0}</span></div>`);
     lines.push(`<div style="font-size:10px;color:var(--gold);margin-top:8px;margin-bottom:4px;letter-spacing:2px">— 处 置 —</div>`);
     lines.push(`<div class="sc-row">
       <button class="sc-btn" onclick="pickSettle(this,'杀死')">杀死</button>
@@ -4606,23 +4527,12 @@ async function doSettle(){
     if(sd.玩家){
       const pk=G.pKeys[0], pc=gA(pk);
       if(pc){
-        const _pk='player';
-        const _pLv=G.charCurLv[_pk]||sd.玩家.基础信息.等级||1;
         sd.玩家.核心状态.血量.上限=pc.hp.max;
         sd.玩家.核心状态.内力.上限=pc.mp.max;
         sd.玩家.核心状态.血量.当前=pc.alive?pc.hp.cur:1;
         sd.玩家.核心状态.内力.当前=pc.mp.cur;
         sd.玩家.核心状态.状态列表=[];
-        sd.玩家.基础信息.经验值=G.charCurExp[_pk]||0;
-        sd.玩家.基础信息.等级=_pLv;
-        sd.玩家.基础信息.称号=lvTitle(_pLv);
-        sd.玩家.基础信息.下一级所需经验=expToNext(_pLv);
         if(pc.attr) sd.玩家.属性={...sd.玩家.属性,...pc.attr};
-        if(G.charBskPts[_pk]){
-          const oldPts=sd.玩家.基本功加点?.点数||0;
-          sd.玩家.基本功加点=sd.玩家.基本功加点||{};
-          sd.玩家.基本功加点.点数=oldPts+G.charBskPts[_pk];
-        }
       }
     }
     // 队友
@@ -4634,17 +4544,14 @@ async function doSettle(){
         sd.我方队友[name].核心状态.血量.当前=ac.alive?ac.hp.cur:1;
         sd.我方队友[name].核心状态.内力.当前=ac.mp.cur;
         sd.我方队友[name].核心状态.状态列表=[];
-        const _aLv=G.charCurLv[name]||ac.level;
-        sd.我方队友[name].基础信息.经验值=G.charCurExp[name]||0;
-        sd.我方队友[name].基础信息.等级=_aLv;
-        sd.我方队友[name].基础信息.称号=lvTitle(_aLv);
-        sd.我方队友[name].基础信息.下一级所需经验=expToNext(_aLv);
         if(ac.attr) sd.我方队友[name].属性={...sd.我方队友[name].属性,...ac.attr};
-        if(G.charBskPts[name]){
-          const oldPts=sd.我方队友[name].基本功加点?.点数||0;
-          sd.我方队友[name].基本功加点=sd.我方队友[name].基本功加点||{};
-          sd.我方队友[name].基本功加点.点数=oldPts+G.charBskPts[name];
-        }
+      }
+    }
+    // 战斗熟练度增长（写入装备功法）
+    if(G.profGained>0&&sd.武功){
+      const equipped=sd.玩家?.装备功法||sd.玩家?.领悟功法||[];
+      for(const kfName of equipped){
+        if(sd.武功[kfName]) sd.武功[kfName].熟练度=(sd.武功[kfName].熟练度||0)+G.profGained;
       }
     }
     // 物品消耗
@@ -4697,13 +4604,6 @@ function buildBattleRecord(){
   const pList=G.pKeys.map(k=>{
     const c=gA(k); if(!c)return null;
     const wp=c.weaponName||'徒手';
-    const snap=G.hpBeforeLvup?.[k];
-    if(snap){
-      // 杀最后敌人升级：用升级前血量算伤势，加后缀
-      const r=snap.cur/snap.max;
-      const wl=r>=1?'无伤':r>=0.6?'轻伤':r>=0.1?'重伤':'濒死';
-      return `${c.name}使用${wp}:${wl}，但战后顿悟，状态恢复`;
-    }
     return `${c.name}使用${wp}:${getWoundLevel(c)}`;
   }).filter(Boolean);
 
@@ -4793,7 +4693,7 @@ function makeCard(key){
     <div class="tgt-arr">▼</div>
     <div class="jz-tag">保护</div>
     <div class="c-header">
-      <span class="c-lv">Lv${c.level}</span>
+      <span class="c-lv">${c.realm||'初学乍练'}</span>
       <span class="c-name">${c.name}</span>
     </div>
     ${c.title?`<div class="c-title">${c.title}</div>`:''}
@@ -4864,8 +4764,7 @@ function updateCard(key){
   const vals=card.querySelectorAll('.bar-val');
   if(vals[0])vals[0].textContent=`${c.hp.cur}/${c.hp.max}`;
   if(vals[1])vals[1].textContent=`${c.mp.cur}/${c.mp.max}`;
-  // 等级更新
-  const lvEl=card.querySelector('.c-lv'); if(lvEl)lvEl.textContent=`Lv${c.level}`;
+  const lvEl=card.querySelector('.c-lv'); if(lvEl)lvEl.textContent=c.realm||'初学乍练';
   // 低血量脉冲
   const bw=card.querySelector('.bar-wrap');
   if(bw){ if(hpP<25&&c.alive)bw.classList.add('hp-low'); else bw.classList.remove('hp-low'); }

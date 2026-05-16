@@ -1814,7 +1814,7 @@ async function confirmTransmigrate() {
         const entries = await getWB(books.primary);
         const target = entries.find(e => e.name === '勿动');
         if (target) {
-          target.content = `<%_\nif (TavernHelper.getLastMessageId() < 2){\nprint(\`\n【开场】\n注意{{user}}穿越到【${who}】身上，时间是【${when}】的时期。\n请查看原著，**初始化更改变量\\\${玩家}的所有节点**（姓名不改），**注意更新等级、武学等变量，按照原著来**\n同时更要参考\\\${武功}，不可出现上面没有的武功。\n\`);\n}\n_%>`;
+          target.content = `<%_\nif (TavernHelper.getLastMessageId() < 2){\nprint(\`\n【开场】\n注意{{user}}穿越到【${who}】身上，时间是【${when}】的时期。\n请查看原著，**初始化更改变量\\\${玩家}的所有节点**（姓名不改），**注意更新境界、武学等变量，按照原著来**\n同时更要参考\\\${武功}，不可出现上面没有的武功。\n\`);\n}\n_%>`;
           await replaceWB(books.primary, entries, { render: 'debounced' });
           console.log('[魂穿] 世界书"勿动"已写入');
         } else {
@@ -2022,11 +2022,12 @@ async function confirmSetup() {
     _.set(data, 'stat_data.$剧情控制', state.openingId);
 
     STAT_KEYS.forEach(key => {
-      _.set(data, `stat_data.玩家.基本功加点.基本功.${key}`, state.stats[key]);
+      _.set(data, `stat_data.玩家.基本功.${key}`, state.stats[key]);
     });
-    _.set(data, 'stat_data.玩家.基本功加点.点数', state.pointsLeft);
 
     _.set(data, 'stat_data.玩家.领悟功法', [state.kungfu]);
+    _.set(data, 'stat_data.玩家.装备功法', [state.kungfu]);
+    _.set(data, 'stat_data.玩家.丹田', {拳掌:0, 棍枪:0, 剑:0, 刀:0, 暗器:0, 内功底蕴:0});
 
     // ── 根据初始武功注入初始武器 ──
     {
@@ -2047,8 +2048,6 @@ async function confirmSetup() {
     }
 
     {
-      const 等级 = 1;
-
       // 武功增幅
       const learnedList = [state.kungfu];
       const kfAttrBonus = { 力量: 0, 速度: 0, 防御力: 0, 内功修为: 0, 身法: 0 };
@@ -2067,7 +2066,7 @@ async function confirmSetup() {
       // 武功基本功增幅写入
       for (const k of STAT_KEYS) {
         if (kfBskBonus[k]) {
-          const p = `stat_data.玩家.基本功加点.基本功.${k}`;
+          const p = `stat_data.玩家.基本功.${k}`;
           _.set(data, p, (_.get(data, p, 0) || 0) + kfBskBonus[k]);
         }
       }
@@ -2114,26 +2113,15 @@ async function confirmSetup() {
       _.set(data, 'stat_data.玩家.属性.内功修为', 内功修为);
       _.set(data, 'stat_data.玩家.属性.身法',     身法);
 
-      const 血量上限 = 300 + 等级 * 60 + 力量 * 20 + 武功血量加成 + 装备血量加成;
-      const 内力上限 = 300 + 等级 * 60 + 内功修为 * 20 + 武功内力加成 + 装备内力加成;
+      let bskSum = 0;
+      for (const sk of STAT_KEYS) bskSum += (state.stats[sk] || 0) + (kfBskBonus[sk] || 0);
+      const 血量上限 = 300 + bskSum * 8 + 力量 * 20 + 武功血量加成 + 装备血量加成;
+      const 内力上限 = 300 + bskSum * 8 + 内功修为 * 20 + 武功内力加成 + 装备内力加成;
 
       _.set(data, 'stat_data.玩家.核心状态.血量.上限', 血量上限);
       _.set(data, 'stat_data.玩家.核心状态.血量.当前', 血量上限);
       _.set(data, 'stat_data.玩家.核心状态.内力.上限', 内力上限);
       _.set(data, 'stat_data.玩家.核心状态.内力.当前', 内力上限);
-
-      function expToNext(lv) {
-        if (lv <= 30)  return lv * 60;
-        if (lv <= 50)  return lv * 90;
-        if (lv <= 70)  return lv * 150;
-        if (lv <= 99)  return lv * 210;
-        if (lv <= 120) return lv * 450;
-        return lv * 600;
-      }
-
-      _.set(data, 'stat_data.玩家.基础信息.等级', 等级);
-      _.set(data, 'stat_data.玩家.基础信息.经验值', 0);
-      _.set(data, 'stat_data.玩家.基础信息.下一级所需经验', expToNext(等级));
 
       console.log(`[开场界面] 初始核心状态：血量上限=${血量上限}，内力上限=${内力上限}`);
     }
@@ -2141,7 +2129,7 @@ async function confirmSetup() {
     let allKungfuRecord;
     if (_kungfuLibCache && typeof _kungfuLibCache === 'object' && Object.keys(_kungfuLibCache).length > 5) {
       allKungfuRecord = Object.fromEntries(
-        Object.values(_kungfuLibCache).map(k => [k.名字, k.类别 || '普通'])
+        Object.values(_kungfuLibCache).map(k => [k.名字, {类别: k.类别 || '普通', 熟练度: 0}])
       );
       console.log('[开场界面] 武功库来源：内存缓存，共', Object.keys(allKungfuRecord).length, '个');
     } else {
@@ -2150,7 +2138,7 @@ async function confirmSetup() {
         const lib = getAllKungfu();
         _kungfuLibCache = lib;
         allKungfuRecord = Object.fromEntries(
-          Object.values(lib).map(k => [k.名字, k.类别 || '普通'])
+          Object.values(lib).map(k => [k.名字, {类别: k.类别 || '普通', 熟练度: 0}])
         );
         console.log('[开场界面] 武功库来源：WX_GET_ALL_KUNGFU，共', Object.keys(allKungfuRecord).length, '个');
       } else {
@@ -2165,7 +2153,7 @@ async function confirmSetup() {
           }
         } catch(mvuErr) {
           console.warn('[开场界面] 武功库兜底（仅5个初始武功）:', mvuErr.message);
-          allKungfuRecord = Object.fromEntries(KUNGFU_LIST.map(k => [k.id, '普通']));
+          allKungfuRecord = Object.fromEntries(KUNGFU_LIST.map(k => [k.id, {类别: '普通', 熟练度: 0}]));
         }
       }
     }
