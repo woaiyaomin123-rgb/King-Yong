@@ -4989,7 +4989,9 @@ async function getLatestAiData() {
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].role === 'assistant') { aiMsgId = msgs[i].message_id; break; }
   }
+  console.log('[getLatestAiData] lastId=', lastId, 'aiMsgId=', aiMsgId, 'totalMsgs=', msgs.length);
   const data = await Mvu.getMvuData({ type: 'message', message_id: aiMsgId });
+  console.log('[getLatestAiData] data keys=', Object.keys(data||{}), 'stat_data keys=', Object.keys(data?.stat_data||{}));
   return { Mvu, data, aiMsgId };
   }
 function getPlayerName(data) {
@@ -5107,8 +5109,11 @@ window.parent.WX_CLEAN_RECORDS = async () => {
 window.parent.WX_GET_STATE = async () => {
   try {
     const { data, aiMsgId } = await getLatestAiData();
-    return { ok: true, aiMsgId, stat_data: JSON.parse(JSON.stringify(data.stat_data)) };
+    const sd = data.stat_data;
+    console.log('[WX_GET_STATE] msgId=', aiMsgId, '力量=', sd?.玩家?.属性?.力量, '基本功=', sd?.玩家?.基本功);
+    return { ok: true, aiMsgId, stat_data: JSON.parse(JSON.stringify(sd)) };
   } catch(e) {
+    console.error('[WX_GET_STATE] 失败:', e.message);
     return { ok: false, msg: e.message };
   }
   };
