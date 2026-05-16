@@ -2168,6 +2168,42 @@ function renderParty() {
               else merged[n] = { 类别: typeof existWg[n]==='string'?existWg[n]:cat, 熟练度: 0 };
             }
             data.stat_data.武功 = merged;
+            // ── 重算玩家属性（基于已学武功的增幅总和）──
+            const player = data.stat_data?.玩家;
+            if (player) {
+              const learned = player.领悟功法 || [];
+              const BKEYS = ['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
+              const AKEYS = ['力量','速度','防御力','内功修为','身法'];
+              const bskBase = {拳掌:0,棍枪:0,剑:0,刀:0,暗器:0,内功底蕴:0};
+              const attrBase = {力量:10,速度:10,防御力:10,内功修为:10,身法:10};
+              let hpBonus = 0, mpBonus = 0;
+              for (const name of learned) {
+                const kf = lib[name]; if (!kf) continue;
+                const b = kf.基本功和属性增幅 || {};
+                for (const k of BKEYS) bskBase[k] += (b[k] || 0);
+                for (const k of AKEYS) attrBase[k] += (b[k] || 0);
+                hpBonus += (b.血量上限 || 0);
+                mpBonus += (b.内力上限 || 0);
+              }
+              // 丹田加成
+              const dantian = player.丹田 || {};
+              for (const k of BKEYS) bskBase[k] += (dantian[k] || 0);
+              player.基本功 = player.基本功 || {};
+              player.属性 = player.属性 || {};
+              for (const k of BKEYS) player.基本功[k] = bskBase[k];
+              for (const k of AKEYS) player.属性[k] = attrBase[k];
+              const bskSum = Object.values(bskBase).reduce((s,v)=>s+v,0);
+              const newHpMax = 300 + bskSum*8 + attrBase.力量*20 + hpBonus;
+              const newMpMax = 300 + bskSum*8 + attrBase.内功修为*20 + mpBonus;
+              player.核心状态 = player.核心状态 || {血量:{},内力:{}};
+              player.核心状态.血量 = player.核心状态.血量 || {};
+              player.核心状态.内力 = player.核心状态.内力 || {};
+              player.核心状态.血量.上限 = newHpMax;
+              player.核心状态.血量.当前 = Math.min(player.核心状态.血量.当前||newHpMax, newHpMax);
+              player.核心状态.内力.上限 = newMpMax;
+              player.核心状态.内力.当前 = Math.min(player.核心状态.内力.当前||newMpMax, newMpMax);
+              showToast(`属性已重算 · 实力值 ${bskSum*2 + attrBase.力量+attrBase.速度+attrBase.防御力+attrBase.内功修为+attrBase.身法}`);
+            }
             // ── 队友key同步姓名 ──
             const allies = data.stat_data?.我方队友;
             if(allies){
@@ -2332,15 +2368,16 @@ function buildBasicPanel(charKey, char) {
   }).join('');
 
   const profHtml = (() => {
+    const learned = char.领悟功法 || [];
+    if (!learned.length) return '';
     const wugong = _state?.武功 || {};
-    const entries = Object.entries(wugong);
-    if (!entries.length) return '';
     const tierName = p => p >= 200 ? '炉火纯青' : p >= 100 ? '融会贯通' : '初窥门径';
     const tierColor = p => p >= 200 ? '#f5c842' : p >= 100 ? '#7ecf7e' : '#aaa';
     return '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:8px">'
       + '<div style="color:var(--text-dim);font-size:11px;margin-bottom:4px">武功熟练度</div>'
-      + entries.map(([name, info]) => {
-        const prof = (typeof info === 'object' ? info.熟练度 : 0)||0;
+      + learned.map(name => {
+        const info = wugong[name];
+        const prof = (info && typeof info === 'object' ? info.熟练度 : 0)||0;
         const pct = Math.min(100, prof/3);
         return `<div style="display:flex;align-items:center;gap:6px;margin:3px 0">
           <span style="min-width:80px;font-size:12px;color:#ccc">${name}</span>
