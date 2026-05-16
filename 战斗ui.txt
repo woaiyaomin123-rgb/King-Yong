@@ -2709,6 +2709,11 @@ async function init(){
   // ── 注入自创武功到武功库 ──
   _injectCustomKungfu();
   log('══ 天书江湖录 · 战斗开启 ══','l-sys');
+  // 确保AI补丁已应用
+  for(let _pt=0;_pt<4;_pt++){
+    try{const _pf=window.parent?.WX_APPLY_AI_PATCH;if(typeof _pf==='function'){const _pr=await _pf();if(_pr?.ok)break;}}catch(e){}
+    await new Promise(r=>setTimeout(r,600*(_pt+1)));
+  }
   const mvu=await loadMvu();
   const sd=mvu?.stat_data;
   if(!sd||(!sd.玩家&&!sd.敌人)){

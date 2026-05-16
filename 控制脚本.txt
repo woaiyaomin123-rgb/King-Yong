@@ -5145,7 +5145,7 @@ window.parent.WX_APPLY_AI_PATCH = async () => {
       const parts = p.path.split('/').filter(Boolean);
       const key = parts.join('.');
       try {
-        if (p.op === 'replace' || p.op === 'add') { _.set(sd, key, p.value); applied++; }
+        if (p.op === 'replace' || p.op === 'add' || p.op === 'insert') { _.set(sd, key, p.value); applied++; }
         else if (p.op === 'remove') { _.unset(sd, key); applied++; }
       } catch(e) { console.warn('[补丁] 操作失败:', p, e); }
     }
@@ -5158,6 +5158,7 @@ window.parent.WX_APPLY_AI_PATCH = async () => {
       }
     }
     sd.武功 = wugong;
+    recalcHpMp(data, 'player');
     sd._lastPatchMsg = aiMsgId;
     await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
     console.log(`[天书] AI补丁已应用: ${applied}/${patches.length} 条操作`);

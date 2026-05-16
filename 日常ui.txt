@@ -2007,11 +2007,15 @@ let _patchChecked = false;
 
 async function loadState(retries=3){
   if (!_patchChecked) {
+    for(let j=0;j<4;j++){
+      try {
+        const r = await callParent('WX_APPLY_AI_PATCH');
+        if (r?.ok) { _patchChecked = true; if (r.applied) console.log('[UI] 已应用AI补丁:', r.applied, '条'); break; }
+        if (r?.ok === false && r?.msg && !r.msg.includes('未加载')) { _patchChecked = true; break; }
+      } catch(e) {}
+      await new Promise(r=>setTimeout(r,600*(j+1)));
+    }
     _patchChecked = true;
-    try {
-      const r = await callParent('WX_APPLY_AI_PATCH');
-      if (r?.ok && r?.applied) console.log('[UI] 已应用AI补丁:', r.applied, '条');
-    } catch(e) {}
   }
   for(let i=0;i<=retries;i++){
     const res = await callParent('WX_GET_STATE');
